@@ -49,7 +49,7 @@ jobs:
         echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
 
     - name: Setup Android app signing
-      if: ${{ secrets.KEYSTORE_BASE64 }}
+      if: secrets.KEYSTORE_BASE64
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
