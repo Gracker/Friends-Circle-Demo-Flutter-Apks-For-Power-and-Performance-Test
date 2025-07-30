@@ -96,10 +96,12 @@ abstract class BaseLoadScreenState<T extends BaseLoadScreen> extends State<T> {
             // 头部
             return _buildHeader();
           } else {
-            // 列表项
+            // 列表项 - 传递负载类型给PostItem，让它在内部处理负载逻辑
             final post = _postData[index - 1];
-            _simulateLoad(widget.loadType); // 模拟计算负载
-            return PostItem(post: post);
+            return PostItem(
+              post: post,
+              loadType: widget.loadType, // 传递负载类型
+            );
           }
         },
       ),

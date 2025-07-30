@@ -17,6 +17,8 @@
 **/.gradle
 **/local.properties
 **/GeneratedPluginRegistrant.*
+**/.cxx/
+**/app/.cxx/
 
 # iOS specific
 **/ios/Flutter/.last_build_id
@@ -30,6 +32,24 @@
 **/ios/.symlinks/
 **/ios/Runner.xcworkspace/
 
-# Project specific
-**/apk/
-**/.fvm/ 
+# Project specific - only ignore apk folders in subprojects
+3.27/apk/
+3.29/apk/
+**/.fvm/
+**/.fvmrc
+
+# Temporary files
+*.tmp
+*.temp
+*~
+*.swp
+*.swo
+
+# Build outputs in subprojects
+3.27/build/
+3.29/build/
+
+# Keep root level files and folders
+!/apk/
+!/*.sh
+!/*.md 
