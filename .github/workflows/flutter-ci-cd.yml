@@ -60,7 +60,7 @@ jobs:
           mkdir -p android/signing
           echo "$KEYSTORE_BASE64" | base64 -d > android/signing/release.keystore
           cat > android/signing/keystore.properties << EOF
-        storeFile=../signing/release.keystore
+        storeFile=release.keystore
         storePassword=$STORE_PASSWORD
         keyAlias=$KEY_ALIAS
         keyPassword=$KEY_PASSWORD
