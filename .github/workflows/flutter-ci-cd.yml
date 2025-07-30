@@ -49,22 +49,26 @@ jobs:
         echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
 
     - name: Setup Android app signing
-      if: secrets.KEYSTORE_BASE64
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
-        mkdir -p android/signing
-        echo "$KEYSTORE_BASE64" | base64 -d > android/signing/release.keystore
-        cat > android/signing/keystore.properties << EOF
+        if [ -n "$KEYSTORE_BASE64" ]; then
+          echo "🔐 Setting up Android app signing..."
+          mkdir -p android/signing
+          echo "$KEYSTORE_BASE64" | base64 -d > android/signing/release.keystore
+          cat > android/signing/keystore.properties << EOF
         storeFile=../signing/release.keystore
         storePassword=$STORE_PASSWORD
         keyAlias=$KEY_ALIAS
         keyPassword=$KEY_PASSWORD
         EOF
-        echo "🔐 Signing configuration completed"
+          echo "✅ Signing configuration completed"
+        else
+          echo "⚠️  No signing configuration found, will use debug signing"
+        fi
 
     - name: Build Flutter 3.27 APK
       run: |
