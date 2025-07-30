@@ -13,6 +13,13 @@
 
 *[English Documentation](README.md)*
 
+## APK 说明
+1. Fultter ： 当前项目，提供两个版本的 flutter，主要用来测试 Performance 和 Power。
+2. AOSP ：wechatfriendforperformance-release ：用来测试性能的 App，使用标准的 AOSP 实现。进去后有三种负载可以选择，主要测试平台性能 or Power。（apk 地址：(https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test/tree/master/apk-released)）
+3. AOSP：wechatfriendforpower-release：原项目 App 魔改，进去后是一个固定显示内容的 微信朋友圈 界面，每次进去显示的内容和每个位置的 item 都是一样的，用来测试固定性能 or Power。（apk 地址：(https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test/tree/master/apk-released)）
+4. WebView：wechatfriendforwebview-release ：用来测试性能的 App，使用标准的 WebView 实现。进去后有三种负载可以选择，主要测试平台性能  or Power。（apk 地址：(https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test/tree/master/apk-released)）
+
+
 ## 🚀 快速开始
 
 ```bash
