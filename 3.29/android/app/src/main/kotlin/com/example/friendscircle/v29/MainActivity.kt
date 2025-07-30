@@ -1,4 +1,4 @@
-package com.example.friendscircle_v29
+package com.example.friendscircle.v29
 
 import io.flutter.embedding.android.FlutterActivity
 
