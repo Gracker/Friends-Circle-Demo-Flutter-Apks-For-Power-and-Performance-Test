@@ -51,6 +51,41 @@ FriendsCircle_Flutter/
 | 3.27 | `com.example.friendscircle.v27` | Flutter V3.27 朋友圈性能功耗测试 Demo | `>=3.27.0 <3.28.0` |
 | 3.29 | `com.example.friendscircle.v29` | Flutter V3.29 朋友圈性能功耗测试 Demo | `>=3.29.0 <4.0.0` |
 
+## APK Description
+
+This project provides **5 different testing applications** for comprehensive performance and power consumption analysis:
+
+### 1. **Flutter** (Current Project)
+- **Description**: Provides two Flutter versions (3.27 & 3.29) for performance and power testing comparison
+- **Purpose**: Test Flutter framework performance across different versions
+- **Features**: Dual version builds, automated CI/CD, signed APKs
+- **Location**: Current repository
+
+### 2. **AOSP Performance** 
+- **File**: `wechatfriendforperformance-release.apk`
+- **Description**: Performance testing app using standard AOSP implementation
+- **Features**: Three load levels (Light/Medium/Heavy) for platform performance and power testing
+- **Repository**: [Friends-Circle-Demo-Apks-For-Power-and-Performance-Test](https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test/tree/master/apk-released)
+
+### 3. **AOSP Fixed Content**
+- **File**: `wechatfriendforpower-release.apk` 
+- **Description**: Modified original app with fixed WeChat Moments interface
+- **Features**: Consistent content and item positioning for stable performance/power testing
+- **Use Case**: Baseline testing with predictable load patterns
+- **Repository**: [Friends-Circle-Demo-Apks-For-Power-and-Performance-Test](https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test/tree/master/apk-released)
+
+### 4. **WebView Implementation**
+- **File**: `wechatfriendforwebview-release.apk`
+- **Description**: Performance testing app using standard WebView implementation
+- **Features**: Three load levels for platform performance and power testing
+- **Purpose**: Compare native vs WebView performance characteristics
+- **Repository**: [Friends-Circle-Demo-Apks-For-Power-and-Performance-Test](https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test/tree/master/apk-released)
+
+### 5. **High Performance**
+- **Additional APK**: Available in the companion repository
+- **Purpose**: Optimized implementation for maximum performance benchmarks
+- **Repository**: [Friends-Circle-Demo-Apks-For-Power-and-Performance-Test](https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test/tree/master/apk-released)
+
 ## Features
 
 ### Performance Testing
