@@ -52,4 +52,10 @@
 # Keep root level files and folders
 !/apk/
 !/*.sh
-!/*.md 
+!/*.md
+
+# Android signing (keep template, ignore actual files)
+android/signing/keystore.properties
+android/signing/*.keystore
+android/signing/*.jks
+!android/signing/*.template 
