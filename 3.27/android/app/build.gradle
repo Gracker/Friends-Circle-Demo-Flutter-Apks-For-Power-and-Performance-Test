@@ -75,7 +75,7 @@ android {
         release {
             signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            shrinkResources false
         }
     }
 }
