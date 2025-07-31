@@ -65,9 +65,9 @@ jobs:
         if [ -n "$KEYSTORE_BASE64" ]; then
           echo "🔐 Setting up Android app signing..."
           # 为3.27版本设置签名配置
-          mkdir -p 3.27/android/signing
-          cp release.keystore 3.27/android/signing/
-          cat > 3.27/android/signing/keystore.properties << EOF
+          mkdir -p 3.27/android/app/signing
+          cp release.keystore 3.27/android/app/signing/
+          cat > 3.27/android/app/signing/keystore.properties << EOF
         storeFile=signing/release.keystore
         storePassword=$STORE_PASSWORD
         keyAlias=$KEY_ALIAS
@@ -75,9 +75,9 @@ jobs:
         EOF
           
           # 为3.29版本设置签名配置
-          mkdir -p 3.29/android/signing
-          cp release.keystore 3.29/android/signing/
-          cat > 3.29/android/signing/keystore.properties << EOF
+          mkdir -p 3.29/android/app/signing
+          cp release.keystore 3.29/android/app/signing/
+          cat > 3.29/android/app/signing/keystore.properties << EOF
         storeFile=signing/release.keystore
         storePassword=$STORE_PASSWORD
         keyAlias=$KEY_ALIAS
