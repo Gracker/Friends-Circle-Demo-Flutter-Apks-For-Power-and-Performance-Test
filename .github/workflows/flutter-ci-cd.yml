@@ -87,7 +87,27 @@ jobs:
         keyAlias=$KEY_ALIAS
         keyPassword=$KEY_PASSWORD
         EOF
-          echo "✅ Signing configuration completed for both versions"
+
+          # 为3.27_TextureView版本设置签名配置
+          mkdir -p 3.27_TextureView/android/app/signing
+          cp release.keystore 3.27_TextureView/android/app/signing/
+          cat > 3.27_TextureView/android/app/signing/keystore.properties << EOF
+        storeFile=signing/release.keystore
+        storePassword=$STORE_PASSWORD
+        keyAlias=$KEY_ALIAS
+        keyPassword=$KEY_PASSWORD
+        EOF
+
+          # 为3.29_TextureView版本设置签名配置
+          mkdir -p 3.29_TextureView/android/app/signing
+          cp release.keystore 3.29_TextureView/android/app/signing/
+          cat > 3.29_TextureView/android/app/signing/keystore.properties << EOF
+        storeFile=signing/release.keystore
+        storePassword=$STORE_PASSWORD
+        keyAlias=$KEY_ALIAS
+        keyPassword=$KEY_PASSWORD
+        EOF
+          echo "✅ Signing configuration completed for all 4 versions"
         else
           echo "⚠️  No signing configuration found, will use debug signing"
         fi
@@ -104,6 +124,24 @@ jobs:
     - name: Build Flutter 3.29 APK
       run: |
         cd 3.29
+        fvm use 3.29.0
+        fvm flutter clean
+        fvm flutter pub get
+        fvm flutter build apk --release
+        cd ..
+
+    - name: Build Flutter 3.27 TextureView APK
+      run: |
+        cd 3.27_TextureView
+        fvm use 3.27.0
+        fvm flutter clean
+        fvm flutter pub get
+        fvm flutter build apk --release
+        cd ..
+
+    - name: Build Flutter 3.29 TextureView APK
+      run: |
+        cd 3.29_TextureView
         fvm use 3.29.0
         fvm flutter clean
         fvm flutter pub get
@@ -131,6 +169,22 @@ jobs:
           echo "❌ Flutter 3.29 APK not found"
         fi
         
+        # 复制并重命名Flutter 3.27 TextureView APK
+        if [ -f "3.27_TextureView/build/app/outputs/flutter-apk/app-release.apk" ]; then
+          cp 3.27_TextureView/build/app/outputs/flutter-apk/app-release.apk "release-apks/friends-flutter-v27-textureview-${{ steps.version.outputs.BUILD_TIME }}-${{ steps.version.outputs.SHORT_SHA }}.apk"
+          echo "✅ Flutter 3.27 TextureView APK copied successfully"
+        else
+          echo "❌ Flutter 3.27 TextureView APK not found"
+        fi
+        
+        # 复制并重命名Flutter 3.29 TextureView APK
+        if [ -f "3.29_TextureView/build/app/outputs/flutter-apk/app-release.apk" ]; then
+          cp 3.29_TextureView/build/app/outputs/flutter-apk/app-release.apk "release-apks/friends-flutter-v29-textureview-${{ steps.version.outputs.BUILD_TIME }}-${{ steps.version.outputs.SHORT_SHA }}.apk"
+          echo "✅ Flutter 3.29 TextureView APK copied successfully"
+        else
+          echo "❌ Flutter 3.29 TextureView APK not found"
+        fi
+        
         # 生成版本信息文件
         echo "# Flutter朋友圈性能测试 - 构建信息" > release-apks/build-info.txt
         echo "" >> release-apks/build-info.txt
@@ -148,10 +202,25 @@ jobs:
         echo "- 包名: com.example.friendscircle.v29" >> release-apks/build-info.txt
         echo "- 应用名: Flutter V3.29 朋友圈性能功耗测试 Demo" >> release-apks/build-info.txt
         echo "" >> release-apks/build-info.txt
+        echo "### Flutter 3.27 TextureView 版本" >> release-apks/build-info.txt
+        echo "- 包名: com.example.friendscircle.v27.textureview" >> release-apks/build-info.txt
+        echo "- 应用名: 朋友圈V27-TextureView" >> release-apks/build-info.txt
+        echo "- 渲染模式: TextureView (FlutterTextureView)" >> release-apks/build-info.txt
+        echo "" >> release-apks/build-info.txt
+        echo "### Flutter 3.29 TextureView 版本" >> release-apks/build-info.txt
+        echo "- 包名: com.example.friendscircle.v29.textureview" >> release-apks/build-info.txt
+        echo "- 应用名: 朋友圈V29-TextureView" >> release-apks/build-info.txt
+        echo "- 渲染模式: TextureView (FlutterTextureView)" >> release-apks/build-info.txt
+        echo "" >> release-apks/build-info.txt
         echo "## 安装方法:" >> release-apks/build-info.txt
         echo "" >> release-apks/build-info.txt
+        echo "# SurfaceView 版本" >> release-apks/build-info.txt
         echo "adb install friends-flutter-v27-release-*.apk" >> release-apks/build-info.txt
         echo "adb install friends-flutter-v29-release-*.apk" >> release-apks/build-info.txt
+        echo "" >> release-apks/build-info.txt
+        echo "# TextureView 版本" >> release-apks/build-info.txt
+        echo "adb install friends-flutter-v27-textureview-*.apk" >> release-apks/build-info.txt
+        echo "adb install friends-flutter-v29-textureview-*.apk" >> release-apks/build-info.txt
         
         # 列出所有生成的文件
         echo "Generated files:"
@@ -202,6 +271,18 @@ jobs:
           - **应用名**: Flutter V3.29 朋友圈性能功耗测试 Demo
           - **Flutter版本**: 3.29.0
           - **Dart版本**: 3.7.0
+
+          ### Flutter 3.27 TextureView 版本
+          - **包名**: `com.example.friendscircle.v27.textureview`
+          - **应用名**: 朋友圈V27-TextureView
+          - **Flutter版本**: 3.27.0
+          - **渲染模式**: TextureView (FlutterTextureView)
+
+          ### Flutter 3.29 TextureView 版本
+          - **包名**: `com.example.friendscircle.v29.textureview`
+          - **应用名**: 朋友圈V29-TextureView
+          - **Flutter版本**: 3.29.0
+          - **渲染模式**: TextureView (FlutterTextureView)
           
           ## 🎯 功能特性
           
@@ -209,6 +290,7 @@ jobs:
           - ✅ **中负载测试**: 正常使用场景
           - ✅ **重负载测试**: 极限性能测试
           - ✅ **双版本对比**: Flutter版本间性能对比
+          - ✅ **渲染模式对比**: SurfaceView vs TextureView 性能对比
           - ✅ **图片浏览分享**: 支持图片缓存优化
           - ✅ **点赞评论**: 完整社交功能
           - ✅ **列表滚动优化**: 大数据集性能优化
@@ -216,11 +298,13 @@ jobs:
           ## 📱 安装方法
           
           ```bash
-          # 安装Flutter 3.27版本
+          # 安装SurfaceView版本
           adb install friends-flutter-v27-release-*.apk
-          
-          # 安装Flutter 3.29版本  
           adb install friends-flutter-v29-release-*.apk
+          
+          # 安装TextureView版本
+          adb install friends-flutter-v27-textureview-*.apk
+          adb install friends-flutter-v29-textureview-*.apk
           
           # 批量安装
           for apk in *.apk; do adb install "$apk"; done
@@ -228,18 +312,20 @@ jobs:
           
           ## 🔍 性能测试建议
           
-          1. **基准测试**: 先安装并运行两个版本，记录基础指标
+          1. **基准测试**: 先安装并运行四个版本，记录基础指标
           2. **负载测试**: 使用不同负载等级测试应用性能
           3. **功耗测试**: 监控电池消耗和CPU/GPU使用率
           4. **内存测试**: 观察内存泄漏和垃圾回收情况
           5. **启动时间**: 对比冷启动和热启动时间
+          6. **渲染对比**: 比较SurfaceView vs TextureView渲染性能差异
           
           ## 📝 说明
           
           - ✅ Release版本，已优化性能
-          - ✅ 两个版本可同时安装使用
+          - ✅ 四个版本可同时安装使用
           - ✅ 所有APK都通过了自动化构建和基本检查
           - ✅ 支持Android API 21+
+          - ✅ 包含SurfaceView和TextureView两种渲染模式
           - ⚠️ 测试版本，仅用于性能评估
           
           ---

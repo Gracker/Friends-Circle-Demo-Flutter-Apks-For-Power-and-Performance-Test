@@ -62,8 +62,9 @@ fi
 log_success "FVM installed"
 
 # Check if in project root directory
-if [ ! -d "3.27" ] || [ ! -d "3.29" ]; then
+if [ ! -d "3.27" ] || [ ! -d "3.29" ] || [ ! -d "3.27_TextureView" ] || [ ! -d "3.29_TextureView" ]; then
     log_error "Please run this script from project root directory"
+    log_error "Required directories: 3.27, 3.29, 3.27_TextureView, 3.29_TextureView"
     exit 1
 fi
 log_success "Project directory check passed"
@@ -83,13 +84,13 @@ echo ""
 
 # Build statistics variables
 SUCCESS_COUNT=0
-TOTAL_COUNT=2
+TOTAL_COUNT=4
 BUILD_ERRORS=()
 
 # Flutter version configuration
-FLUTTER_VERSIONS=("3.27" "3.29")
-APP_NAMES=("Friends Circle V27" "Friends Circle V29")
-PACKAGE_NAMES=("com.example.friendscircle.v27" "com.example.friendscircle.v29")
+FLUTTER_VERSIONS=("3.27" "3.29" "3.27_TextureView" "3.29_TextureView")
+APP_NAMES=("Friends Circle V27" "Friends Circle V29" "Friends Circle V27 TextureView" "Friends Circle V29 TextureView")
+PACKAGE_NAMES=("com.example.friendscircle.v27" "com.example.friendscircle.v29" "com.example.friendscircle.v27.textureview" "com.example.friendscircle.v29.textureview")
 
 # Build function
 build_flutter_version() {
@@ -148,8 +149,12 @@ build_flutter_version() {
             local apk_name=""
             if [ "$version" = "3.27" ]; then
                 apk_name="friends-flutter-v27-release.apk"
-            else
+            elif [ "$version" = "3.29" ]; then
                 apk_name="friends-flutter-v29-release.apk"
+            elif [ "$version" = "3.27_TextureView" ]; then
+                apk_name="friends-flutter-v27-textureview.apk"
+            else
+                apk_name="friends-flutter-v29-textureview.apk"
             fi
             
             # Clean old version
@@ -164,8 +169,12 @@ build_flutter_version() {
             local info_name=""
             if [ "$version" = "3.27" ]; then
                 info_name="friends-flutter-v27-release.txt"
-            else
+            elif [ "$version" = "3.29" ]; then
                 info_name="friends-flutter-v29-release.txt"
+            elif [ "$version" = "3.27_TextureView" ]; then
+                info_name="friends-flutter-v27-textureview.txt"
+            else
+                info_name="friends-flutter-v29-textureview.txt"
             fi
             
             # Clean old version info file
@@ -242,11 +251,17 @@ if [ $SUCCESS_COUNT -eq $TOTAL_COUNT ]; then
     
     echo ""
     log_info "Installation command examples:"
-    echo -e "${YELLOW}   # Install Flutter 3.27 version${NC}"
+    echo -e "${YELLOW}   # Install Flutter 3.27 version (SurfaceView)${NC}"
     echo -e "${YELLOW}   adb install \"$OUTPUT_DIR/friends-flutter-v27-release.apk\"${NC}"
     echo ""
-    echo -e "${YELLOW}   # Install Flutter 3.29 version${NC}"
+    echo -e "${YELLOW}   # Install Flutter 3.29 version (SurfaceView)${NC}"
     echo -e "${YELLOW}   adb install \"$OUTPUT_DIR/friends-flutter-v29-release.apk\"${NC}"
+    echo ""
+    echo -e "${YELLOW}   # Install Flutter 3.27 TextureView version${NC}"
+    echo -e "${YELLOW}   adb install \"$OUTPUT_DIR/friends-flutter-v27-textureview.apk\"${NC}"
+    echo ""
+    echo -e "${YELLOW}   # Install Flutter 3.29 TextureView version${NC}"
+    echo -e "${YELLOW}   adb install \"$OUTPUT_DIR/friends-flutter-v29-textureview.apk\"${NC}"
     echo ""
     echo -e "${YELLOW}   # Batch install all APKs${NC}"
     echo -e "${YELLOW}   for apk in $OUTPUT_DIR/*.apk; do adb install \"\$apk\"; done${NC}"
@@ -307,11 +322,17 @@ for apk in $OUTPUT_DIR/*.apk; do
 done
 echo ""
 echo "🚀 Quick launch commands:"
-echo "   # Launch Flutter 3.27 version"
+echo "   # Launch Flutter 3.27 version (SurfaceView)"
 echo "   adb shell am start -n com.example.friendscircle.v27/.MainActivity"
 echo ""
-echo "   # Launch Flutter 3.29 version"  
+echo "   # Launch Flutter 3.29 version (SurfaceView)"  
 echo "   adb shell am start -n com.example.friendscircle.v29/.MainActivity"
+echo ""
+echo "   # Launch Flutter 3.27 TextureView version"
+echo "   adb shell am start -n com.example.friendscircle.v27.textureview/.MainActivity"
+echo ""
+echo "   # Launch Flutter 3.29 TextureView version"
+echo "   adb shell am start -n com.example.friendscircle.v29.textureview/.MainActivity"
 EOF
     chmod +x "$compare_script"
     log_info "📊 Performance comparison script created: $compare_script"
