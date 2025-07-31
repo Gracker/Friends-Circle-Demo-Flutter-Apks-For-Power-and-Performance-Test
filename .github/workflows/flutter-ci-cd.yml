@@ -48,24 +48,42 @@ jobs:
         echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
         echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
 
+    - name: Decode Keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+        chmod 600 release.keystore
+      
     - name: Setup Android app signing
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        KEYSTORE_FILE_PATH: ${{ github.workspace }}/release.keystore
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       run: |
         if [ -n "$KEYSTORE_BASE64" ]; then
           echo "🔐 Setting up Android app signing..."
-          mkdir -p android/signing
-          echo "$KEYSTORE_BASE64" | base64 -d > android/signing/release.keystore
-          cat > android/signing/keystore.properties << EOF
-        storeFile=release.keystore
+          # 为3.27版本设置签名配置
+          mkdir -p 3.27/android/signing
+          cp release.keystore 3.27/android/signing/
+          cat > 3.27/android/signing/keystore.properties << EOF
+        storeFile=signing/release.keystore
         storePassword=$STORE_PASSWORD
         keyAlias=$KEY_ALIAS
         keyPassword=$KEY_PASSWORD
         EOF
-          echo "✅ Signing configuration completed"
+          
+          # 为3.29版本设置签名配置
+          mkdir -p 3.29/android/signing
+          cp release.keystore 3.29/android/signing/
+          cat > 3.29/android/signing/keystore.properties << EOF
+        storeFile=signing/release.keystore
+        storePassword=$STORE_PASSWORD
+        keyAlias=$KEY_ALIAS
+        keyPassword=$KEY_PASSWORD
+        EOF
+          echo "✅ Signing configuration completed for both versions"
         else
           echo "⚠️  No signing configuration found, will use debug signing"
         fi
