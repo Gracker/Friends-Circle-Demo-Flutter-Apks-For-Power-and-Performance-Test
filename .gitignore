@@ -35,6 +35,8 @@
 # Project specific - only ignore apk folders in subprojects
 3.27/apk/
 3.29/apk/
+3.27_TextureView/apk/
+3.29_TextureView/apk/
 **/.fvm/
 **/.fvmrc
 
@@ -48,6 +50,8 @@
 # Build outputs in subprojects
 3.27/build/
 3.29/build/
+3.27_TextureView/build/
+3.29_TextureView/build/
 
 # Keep root level files and folders
 !/apk/

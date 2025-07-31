@@ -24,17 +24,20 @@ fvm install 3.29.0
 ```
 
 **功能特性：**
-- ✅ 自动构建两个Flutter版本
+- ✅ 自动构建四个Flutter版本（SurfaceView + TextureView）
 - ✅ 详细的构建日志和进度显示
 - ✅ 错误处理和失败重试
 - ✅ 自动生成版本信息文件
 - ✅ 创建安装脚本和性能对比脚本
 - ✅ 构建统计和结果分析
+- ✅ 支持SurfaceView vs TextureView渲染模式对比
 
 **输出文件：**
-- `apk/朋友圈V27-v1.0.0-20240730_2012.apk`
-- `apk/朋友圈V29-v1.0.0-20240730_2012.apk`
-- `apk/朋友圈V27-v1.0.0-20240730_2012.txt` (版本信息)
+- `apk/friends-flutter-v27-release.apk` (3.27 SurfaceView版本)
+- `apk/friends-flutter-v29-release.apk` (3.29 SurfaceView版本)
+- `apk/friends-flutter-v27-textureview.apk` (3.27 TextureView版本)
+- `apk/friends-flutter-v29-textureview.apk` (3.29 TextureView版本)
+- 对应的版本信息文件 (.txt)
 - `install_flutter_apks.sh` (自动安装脚本)
 - `performance_compare.sh` (性能对比脚本)
 
@@ -43,6 +46,8 @@ fvm install 3.29.0
 ./quick_build.sh              # 构建所有版本
 ./quick_build.sh 3.27         # 只构建3.27版本  
 ./quick_build.sh 3.29         # 只构建3.29版本
+./quick_build.sh 3.27_TextureView  # 只构建3.27 TextureView版本
+./quick_build.sh 3.29_TextureView  # 只构建3.29 TextureView版本
 ```
 
 **适用场景：**
@@ -101,9 +106,14 @@ adb devices
 # 卸载旧版本
 adb uninstall com.example.friendscircle.v27
 adb uninstall com.example.friendscircle.v29
+adb uninstall com.example.friendscircle.v27.textureview
+adb uninstall com.example.friendscircle.v29.textureview
 
 # 重新安装
-adb install apk/朋友圈V27-*.apk
+adb install apk/friends-flutter-v27-release.apk
+adb install apk/friends-flutter-v29-release.apk
+adb install apk/friends-flutter-v27-textureview.apk
+adb install apk/friends-flutter-v29-textureview.apk
 ```
 
 ### 环境配置检查脚本
@@ -140,6 +150,18 @@ else
     echo "❌ 3.29版本配置缺失"
 fi
 
+if [ -f "3.27_TextureView/.fvmrc" ]; then
+    echo "✅ 3.27_TextureView版本配置: $(cat 3.27_TextureView/.fvmrc)"
+else
+    echo "❌ 3.27_TextureView版本配置缺失"
+fi
+
+if [ -f "3.29_TextureView/.fvmrc" ]; then
+    echo "✅ 3.29_TextureView版本配置: $(cat 3.29_TextureView/.fvmrc)"
+else
+    echo "❌ 3.29_TextureView版本配置缺失"
+fi
+
 # 检查Android设备
 echo ""
 echo "📱 Android设备检查:"
@@ -169,6 +191,10 @@ adb devices
 - **中负载测试**：正常使用场景
 - **重负载测试**：极限性能测试
 
+### 5. 渲染模式对比
+- **SurfaceView版本**：Flutter默认渲染模式，使用SurfaceView
+- **TextureView版本**：使用Flutter官方FlutterTextureView，可参与View层级变换
+
 ## 📊 构建优化
 
 ### 减少构建时间
@@ -176,6 +202,8 @@ adb devices
 # 并行构建（如果有多核CPU）
 ./quick_build.sh 3.27 &
 ./quick_build.sh 3.29 &
+./quick_build.sh 3.27_TextureView &
+./quick_build.sh 3.29_TextureView &
 wait
 ```
 
