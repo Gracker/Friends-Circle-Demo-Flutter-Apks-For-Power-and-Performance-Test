@@ -16,8 +16,5 @@
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
     
-    <!-- AppCompat theme for TextureView Activity -->
-    <style name="AppCompatTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
-    </style>
+    
 </resources>
