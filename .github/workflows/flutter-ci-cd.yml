@@ -8,17 +8,22 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - { name: '3.27', flutter: '3.27.0', description: 'v27 (SurfaceView)' }
+          - { name: '3.29', flutter: '3.29.0', description: 'v29 (SurfaceView)' }
+          - { name: '3.27_TextureView', flutter: '3.27.0', description: 'v27 (TextureView)' }
+          - { name: '3.29_TextureView', flutter: '3.29.0', description: 'v29 (TextureView)' }
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -27,310 +32,74 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle'
 
-    - name: Setup Flutter
+    - name: Setup Flutter using FVM
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.27.0'
+        flutter-version: ${{ matrix.project.flutter }}
         channel: 'stable'
         cache: true
 
-    - name: Setup FVM (Flutter Version Management)
-      run: |
-        dart pub global activate fvm
-        echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
-
-    - name: Install Flutter versions
-      run: |
-        fvm install 3.27.0
-        fvm install 3.29.0
-        fvm list
-
-    - name: Get version info
-      id: version
-      run: |
-        echo "BUILD_TIME=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-        echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-
     - name: Decode Keystore
+      if: secrets.KEYSTORE_BASE64 != ''
       run: |
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
-        chmod 600 release.keystore
+        mkdir -p ${{ matrix.project.name }}/android/app/signing
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ matrix.project.name }}/android/app/signing/release.keystore
       
     - name: Setup Android app signing
-      env:
-        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        KEYSTORE_FILE_PATH: ${{ github.workspace }}/release.keystore
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      if: secrets.KEYSTORE_BASE64 != ''
       run: |
-        if [ -n "$KEYSTORE_BASE64" ]; then
-          echo "🔐 Setting up Android app signing..."
-          # 为3.27版本设置签名配置
-          mkdir -p 3.27/android/app/signing
-          cp release.keystore 3.27/android/app/signing/
-          cat > 3.27/android/app/signing/keystore.properties << EOF
+        cat > ${{ matrix.project.name }}/android/app/signing/keystore.properties << EOF
         storeFile=signing/release.keystore
-        storePassword=$STORE_PASSWORD
-        keyAlias=$KEY_ALIAS
-        keyPassword=$KEY_PASSWORD
-        EOF
-          
-          # 为3.29版本设置签名配置
-          mkdir -p 3.29/android/app/signing
-          cp release.keystore 3.29/android/app/signing/
-          cat > 3.29/android/app/signing/keystore.properties << EOF
-        storeFile=signing/release.keystore
-        storePassword=$STORE_PASSWORD
-        keyAlias=$KEY_ALIAS
-        keyPassword=$KEY_PASSWORD
+        storePassword=${{ secrets.STORE_PASSWORD }}
+        keyAlias=${{ secrets.KEY_ALIAS }}
+        keyPassword=${{ secrets.KEY_PASSWORD }}
         EOF
 
-          # 为3.27_TextureView版本设置签名配置
-          mkdir -p 3.27_TextureView/android/app/signing
-          cp release.keystore 3.27_TextureView/android/app/signing/
-          cat > 3.27_TextureView/android/app/signing/keystore.properties << EOF
-        storeFile=signing/release.keystore
-        storePassword=$STORE_PASSWORD
-        keyAlias=$KEY_ALIAS
-        keyPassword=$KEY_PASSWORD
-        EOF
-
-          # 为3.29_TextureView版本设置签名配置
-          mkdir -p 3.29_TextureView/android/app/signing
-          cp release.keystore 3.29_TextureView/android/app/signing/
-          cat > 3.29_TextureView/android/app/signing/keystore.properties << EOF
-        storeFile=signing/release.keystore
-        storePassword=$STORE_PASSWORD
-        keyAlias=$KEY_ALIAS
-        keyPassword=$KEY_PASSWORD
-        EOF
-          echo "✅ Signing configuration completed for all 4 versions"
-        else
-          echo "⚠️  No signing configuration found, will use debug signing"
-        fi
-
-    - name: Build Flutter 3.27 APK
+    - name: Build Flutter APK for ${{ matrix.project.description }}
       run: |
-        cd 3.27
-        fvm use 3.27.0
-        fvm flutter clean
-        fvm flutter pub get
-        fvm flutter build apk --release
-        cd ..
+        cd ${{ matrix.project.name }}
+        flutter clean
+        flutter pub get
+        flutter build apk --release
 
-    - name: Build Flutter 3.29 APK
-      run: |
-        cd 3.29
-        fvm use 3.29.0
-        fvm flutter clean
-        fvm flutter pub get
-        fvm flutter build apk --release
-        cd ..
-
-    - name: Build Flutter 3.27 TextureView APK
-      run: |
-        cd 3.27_TextureView
-        fvm use 3.27.0
-        fvm flutter clean
-        fvm flutter pub get
-        fvm flutter build apk --release
-        cd ..
-
-    - name: Build Flutter 3.29 TextureView APK
-      run: |
-        cd 3.29_TextureView
-        fvm use 3.29.0
-        fvm flutter clean
-        fvm flutter pub get
-        fvm flutter build apk --release
-        cd ..
-
-    - name: Rename and organize APK files
-      run: |
-        # 创建release目录
-        mkdir -p release-apks
-        
-        # 复制并重命名Flutter 3.27 APK
-        if [ -f "3.27/build/app/outputs/flutter-apk/app-release.apk" ]; then
-          cp 3.27/build/app/outputs/flutter-apk/app-release.apk "release-apks/friends-flutter-v27-release-${{ steps.version.outputs.BUILD_TIME }}-${{ steps.version.outputs.SHORT_SHA }}.apk"
-          echo "✅ Flutter 3.27 APK copied successfully"
-        else
-          echo "❌ Flutter 3.27 APK not found"
-        fi
-        
-        # 复制并重命名Flutter 3.29 APK
-        if [ -f "3.29/build/app/outputs/flutter-apk/app-release.apk" ]; then
-          cp 3.29/build/app/outputs/flutter-apk/app-release.apk "release-apks/friends-flutter-v29-release-${{ steps.version.outputs.BUILD_TIME }}-${{ steps.version.outputs.SHORT_SHA }}.apk"
-          echo "✅ Flutter 3.29 APK copied successfully"
-        else
-          echo "❌ Flutter 3.29 APK not found"
-        fi
-        
-        # 复制并重命名Flutter 3.27 TextureView APK
-        if [ -f "3.27_TextureView/build/app/outputs/flutter-apk/app-release.apk" ]; then
-          cp 3.27_TextureView/build/app/outputs/flutter-apk/app-release.apk "release-apks/friends-flutter-v27-textureview-${{ steps.version.outputs.BUILD_TIME }}-${{ steps.version.outputs.SHORT_SHA }}.apk"
-          echo "✅ Flutter 3.27 TextureView APK copied successfully"
-        else
-          echo "❌ Flutter 3.27 TextureView APK not found"
-        fi
-        
-        # 复制并重命名Flutter 3.29 TextureView APK
-        if [ -f "3.29_TextureView/build/app/outputs/flutter-apk/app-release.apk" ]; then
-          cp 3.29_TextureView/build/app/outputs/flutter-apk/app-release.apk "release-apks/friends-flutter-v29-textureview-${{ steps.version.outputs.BUILD_TIME }}-${{ steps.version.outputs.SHORT_SHA }}.apk"
-          echo "✅ Flutter 3.29 TextureView APK copied successfully"
-        else
-          echo "❌ Flutter 3.29 TextureView APK not found"
-        fi
-        
-        # 生成版本信息文件
-        echo "# Flutter朋友圈性能测试 - 构建信息" > release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "构建时间: ${{ steps.version.outputs.BUILD_TIME }}" >> release-apks/build-info.txt
-        echo "Git提交: ${{ steps.version.outputs.SHORT_SHA }}" >> release-apks/build-info.txt
-        echo "分支: ${{ steps.version.outputs.BRANCH_NAME }}" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "## APK文件列表:" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "### Flutter 3.27 版本" >> release-apks/build-info.txt
-        echo "- 包名: com.example.friendscircle.v27" >> release-apks/build-info.txt
-        echo "- 应用名: Flutter V3.27 朋友圈性能功耗测试 Demo" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "### Flutter 3.29 版本" >> release-apks/build-info.txt
-        echo "- 包名: com.example.friendscircle.v29" >> release-apks/build-info.txt
-        echo "- 应用名: Flutter V3.29 朋友圈性能功耗测试 Demo" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "### Flutter 3.27 TextureView 版本" >> release-apks/build-info.txt
-        echo "- 包名: com.example.friendscircle.v27.textureview" >> release-apks/build-info.txt
-        echo "- 应用名: 朋友圈V27-TextureView" >> release-apks/build-info.txt
-        echo "- 渲染模式: TextureView (FlutterTextureView)" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "### Flutter 3.29 TextureView 版本" >> release-apks/build-info.txt
-        echo "- 包名: com.example.friendscircle.v29.textureview" >> release-apks/build-info.txt
-        echo "- 应用名: 朋友圈V29-TextureView" >> release-apks/build-info.txt
-        echo "- 渲染模式: TextureView (FlutterTextureView)" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "## 安装方法:" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "# SurfaceView 版本" >> release-apks/build-info.txt
-        echo "adb install friends-flutter-v27-release-*.apk" >> release-apks/build-info.txt
-        echo "adb install friends-flutter-v29-release-*.apk" >> release-apks/build-info.txt
-        echo "" >> release-apks/build-info.txt
-        echo "# TextureView 版本" >> release-apks/build-info.txt
-        echo "adb install friends-flutter-v27-textureview-*.apk" >> release-apks/build-info.txt
-        echo "adb install friends-flutter-v29-textureview-*.apk" >> release-apks/build-info.txt
-        
-        # 列出所有生成的文件
-        echo "Generated files:"
-        ls -la release-apks/
-        
-        # 显示文件大小
-        echo ""
-        echo "APK文件大小:"
-        for apk in release-apks/*.apk; do
-          if [ -f "$apk" ]; then
-            size=$(du -h "$apk" | cut -f1)
-            filename=$(basename "$apk")
-            echo "📱 $filename - $size"
-          fi
-        done
-
-    - name: Upload APKs as artifacts
+    - name: Upload APK as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: flutter-apks-${{ steps.version.outputs.BUILD_TIME }}
-        path: release-apks/
-        retention-days: 30
+        name: friends-flutter-${{ matrix.project.description }}
+        path: ${{ matrix.project.name }}/build/app/outputs/flutter-apk/app-release.apk
+        retention-days: 1
 
-    - name: Create Release (only on push to main)
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag_name: auto-build-${{ steps.version.outputs.BUILD_TIME }}
-        name: "🚀 Flutter朋友圈双版本构建 ${{ steps.version.outputs.BUILD_TIME }}"
-        body: |
-          🤖 **自动构建发布**
-          
-          📅 **构建时间**: ${{ steps.version.outputs.BUILD_TIME }}
-          🔗 **提交**: ${{ steps.version.outputs.SHORT_SHA }}
-          🌿 **分支**: ${{ steps.version.outputs.BRANCH_NAME }}
-          
-          ## 📦 包含的APK文件
-          
-          ### Flutter 3.27 版本
-          - **包名**: `com.example.friendscircle.v27`
-          - **应用名**: Flutter V3.27 朋友圈性能功耗测试 Demo
-          - **Flutter版本**: 3.27.0
-          - **Dart版本**: 3.6.0
-          
-          ### Flutter 3.29 版本  
-          - **包名**: `com.example.friendscircle.v29`
-          - **应用名**: Flutter V3.29 朋友圈性能功耗测试 Demo
-          - **Flutter版本**: 3.29.0
-          - **Dart版本**: 3.7.0
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Get version info
+        id: version
+        run: |
+          echo "BUILD_TIME=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-          ### Flutter 3.27 TextureView 版本
-          - **包名**: `com.example.friendscircle.v27.textureview`
-          - **应用名**: 朋友圈V27-TextureView
-          - **Flutter版本**: 3.27.0
-          - **渲染模式**: TextureView (FlutterTextureView)
+      - name: Download all APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-apks/
 
-          ### Flutter 3.29 TextureView 版本
-          - **包名**: `com.example.friendscircle.v29.textureview`
-          - **应用名**: 朋友圈V29-TextureView
-          - **Flutter版本**: 3.29.0
-          - **渲染模式**: TextureView (FlutterTextureView)
-          
-          ## 🎯 功能特性
-          
-          - ✅ **轻负载测试**: 基础功能测试
-          - ✅ **中负载测试**: 正常使用场景
-          - ✅ **重负载测试**: 极限性能测试
-          - ✅ **双版本对比**: Flutter版本间性能对比
-          - ✅ **渲染模式对比**: SurfaceView vs TextureView 性能对比
-          - ✅ **图片浏览分享**: 支持图片缓存优化
-          - ✅ **点赞评论**: 完整社交功能
-          - ✅ **列表滚动优化**: 大数据集性能优化
-          
-          ## 📱 安装方法
-          
-          ```bash
-          # 安装SurfaceView版本
-          adb install friends-flutter-v27-release-*.apk
-          adb install friends-flutter-v29-release-*.apk
-          
-          # 安装TextureView版本
-          adb install friends-flutter-v27-textureview-*.apk
-          adb install friends-flutter-v29-textureview-*.apk
-          
-          # 批量安装
-          for apk in *.apk; do adb install "$apk"; done
-          ```
-          
-          ## 🔍 性能测试建议
-          
-          1. **基准测试**: 先安装并运行四个版本，记录基础指标
-          2. **负载测试**: 使用不同负载等级测试应用性能
-          3. **功耗测试**: 监控电池消耗和CPU/GPU使用率
-          4. **内存测试**: 观察内存泄漏和垃圾回收情况
-          5. **启动时间**: 对比冷启动和热启动时间
-          6. **渲染对比**: 比较SurfaceView vs TextureView渲染性能差异
-          
-          ## 📝 说明
-          
-          - ✅ Release版本，已优化性能
-          - ✅ 四个版本可同时安装使用
-          - ✅ 所有APK都通过了自动化构建和基本检查
-          - ✅ 支持Android API 21+
-          - ✅ 包含SurfaceView和TextureView两种渲染模式
-          - ⚠️ 测试版本，仅用于性能评估
-          
-          ---
-          💡 这是通过GitHub Actions自动生成的发布版本  
-          🔗 项目地址: [GitHub仓库](https://github.com/Gracker/Friends-Circle-Demo-Flutter-Apks-For-Power-and-Performance-Test)
-        files: release-apks/*
-        draft: false
-        prerelease: false
+      - name: List downloaded files
+        run: ls -laR all-apks/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: auto-build-${{ steps.version.outputs.BUILD_TIME }}
+          name: "🚀 Automated Build ${{ steps.version.outputs.BUILD_TIME }}"
+          body: |
+            **Automated build from commit `${{ steps.version.outputs.SHORT_SHA }}`**
+
+            This release contains the following APKs:
+            - `v27 (SurfaceView)`
+            - `v29 (SurfaceView)`
+            - `v27 (TextureView)`
+            - `v29 (TextureView)`
+          files: all-apks/**/*.apk

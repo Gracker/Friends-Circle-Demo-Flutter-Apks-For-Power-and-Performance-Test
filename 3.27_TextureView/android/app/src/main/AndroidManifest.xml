@@ -4,7 +4,7 @@
         android:label="朋友圈V27-TextureView"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name="com.example.friendscircle.v27.textureview.MainActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
