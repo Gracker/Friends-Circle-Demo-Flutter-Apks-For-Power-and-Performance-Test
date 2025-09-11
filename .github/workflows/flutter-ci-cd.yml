@@ -47,7 +47,7 @@ jobs:
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
         if [ -n "$KEYSTORE_BASE64" ]; then
-          echo "🔐 Setting up Android app signing for ${{ matrix.project.name }}..."
+          echo "🔐 Setting up Android app signing for ${{ matrix.project.name }}"...
           mkdir -p ${{ matrix.project.name }}/android/app/signing
           echo "$KEYSTORE_BASE64" | base64 -d > ${{ matrix.project.name }}/android/app/signing/release.keystore
           echo -e "storeFile=signing/release.keystore\nstorePassword=$STORE_PASSWORD\nkeyAlias=$KEY_ALIAS\nkeyPassword=$KEY_PASSWORD" > ${{ matrix.project.name }}/android/app/signing/keystore.properties
@@ -86,8 +86,20 @@ jobs:
         with:
           path: all-apks/
 
-      - name: List downloaded files
-        run: ls -laR all-apks/
+      - name: List and Rename APKs
+        run: |
+          echo "--- Original Files ---"
+          ls -laR all-apks/
+          for dir in all-apks/*/; 
+          do
+            if [ -f "${dir}app-release.apk" ]; then
+              sanitized_name=$(basename "$dir" | tr -d '() ')
+              mv "${dir}app-release.apk" "all-apks/friends-flutter-${sanitized_name}.apk"
+              rm -r "$dir"
+            fi
+          done
+          echo "--- Renamed Files ---"
+          ls -laR all-apks/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -103,4 +115,4 @@ jobs:
             - `v29 (SurfaceView)`
             - `v27 (TextureView)`
             - `v29 (TextureView)`
-          files: all-apks/**/*.apk
+          files: all-apks/*.apk
