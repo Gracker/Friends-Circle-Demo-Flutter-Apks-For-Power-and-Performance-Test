@@ -40,13 +40,13 @@ jobs:
         cache: true
 
     - name: Decode Keystore
-      if: secrets.KEYSTORE_BASE64 != ''
+      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
       run: |
         mkdir -p ${{ matrix.project.name }}/android/app/signing
         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ matrix.project.name }}/android/app/signing/release.keystore
       
     - name: Setup Android app signing
-      if: secrets.KEYSTORE_BASE64 != ''
+      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
       run: |
         cat > ${{ matrix.project.name }}/android/app/signing/keystore.properties << EOF
         storeFile=signing/release.keystore
