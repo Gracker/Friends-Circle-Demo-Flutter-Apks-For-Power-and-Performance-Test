@@ -3,6 +3,7 @@ package com.example.friendscircle.v27.textureview
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.android.RenderMode
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
 /**
  * 使用TextureView渲染模式的MainActivity
@@ -13,6 +14,7 @@ import io.flutter.embedding.engine.FlutterEngine
  * 3. FlutterTextureView继承自Android原生TextureView，在SurfaceTexture上绘制Flutter UI
  */
 class MainActivity: FlutterActivity() {
+    private val CHANNEL = "app.channel.shared.data"
     
     /**
      * 重写getRenderMode方法，指定使用TextureView渲染模式
@@ -29,5 +31,17 @@ class MainActivity: FlutterActivity() {
      */
     override fun getRenderMode(): RenderMode {
         return RenderMode.texture
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            if (call.method == "getInitialLoad") {
+                val initialLoad = intent.getStringExtra("load")
+                result.success(initialLoad)
+            } else {
+                result.notImplemented()
+            }
+        }
     }
 }

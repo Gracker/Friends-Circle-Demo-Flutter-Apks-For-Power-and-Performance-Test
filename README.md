@@ -49,6 +49,19 @@ FriendsCircle_Flutter/
 └── 3.29_TextureView/          # Flutter 3.29 project (TextureView)
 ```
 
+## Purpose of the Four Project Variants
+
+This repository contains four distinct Flutter projects to create a comprehensive performance testing matrix. The goal is to analyze and compare performance across two key dimensions: **Flutter SDK version** and **Android rendering mode**.
+
+1.  **Flutter Version Comparison (`3.27` vs. `3.29`)**
+    -   This allows for direct performance comparison between two different Flutter SDK versions. It's crucial for identifying potential performance regressions or improvements when planning a framework upgrade.
+
+2.  **Android Rendering Mode Comparison (`SurfaceView` vs. `TextureView`)**
+    -   **SurfaceView (`3.27` & `3.29` directories):** This is Flutter's default rendering mode on Android. It is highly performant but has limitations when integrating with native Android views (known as the "platform view airspace problem").
+    -   **TextureView (`3.27_TextureView` & `3.29_TextureView` directories):** This rendering mode makes a Flutter view behave like a standard Android view, allowing it to be transformed, animated, and layered with other views. This compatibility comes at a potential performance cost.
+
+By testing across this 2x2 matrix, we can answer questions like, "Did Flutter 3.29 improve performance on TextureView?" or "Is the performance gap between SurfaceView and TextureView smaller in the newer Flutter version?".
+
 ## Version Information
 
 ### SurfaceView Versions (Default Flutter Rendering)
@@ -147,6 +160,40 @@ adb install apk/friends-flutter-v29-textureview.apk
 
 # Batch install
 for apk in apk/*.apk; do adb install "$apk"; done
+```
+
+## 🚀 Deep Linking for Automated Testing
+
+To facilitate automated testing, you can launch the application directly into a specific load test scenario (Light, Medium, or Heavy) using `adb` commands. This is achieved by passing an `Intent` extra (`-e "load" "<scenario>"`) during launch.
+
+### Command Template
+
+```bash
+# Launch into a specific load scenario
+adb shell am start -n <package_name>/.MainActivity -e "load" "<scenario>"
+
+# Normal launch (shows the home screen)
+adb shell am start -n <package_name>/.MainActivity
+```
+
+-   Replace `<package_name>` with the target application's package name.
+-   Replace `<scenario>` with one of the following: `light`, `medium`, `heavy`.
+
+### Package Names
+
+| App Version          | Package Name                                       |
+| -------------------- | -------------------------------------------------- |
+| 3.27 (SurfaceView)   | `com.example.friendscircle.v27`                    |
+| 3.29 (SurfaceView)   | `com.example.friendscircle.v29`                    |
+| 3.27 (TextureView)   | `com.example.friendscircle.v27.textureview`        |
+| 3.29 (TextureView)   | `com.example.friendscircle.v29.textureview`        |
+
+### Example
+
+To launch the **light load test** on the **v27 (SurfaceView)** app:
+
+```bash
+adb shell am start -n com.example.friendscircle.v27/.MainActivity -e "load" "light"
 ```
 
 ## Documentation
