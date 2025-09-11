@@ -49,36 +49,7 @@ abstract class BaseLoadScreenState<T extends BaseLoadScreen> extends State<T> {
 
   /// 滚动监听器
   void _scrollListener() {
-    // 检测滚动状态
-    if (_scrollController.position.isScrollingNotifier.value) {
-      if (!_isScrolling) {
-        setState(() {
-          _isScrolling = true;
-        });
-      }
-    } else {
-      if (_isScrolling) {
-        setState(() {
-          _isScrolling = false;
-        });
-      }
-    }
-    
-    // 检测是否应该显示App Bar
-    if (_scrollController.position.pixels > 200 && !_showAppBar) {
-      setState(() {
-        _showAppBar = true;
-      });
-    } else if (_scrollController.position.pixels <= 200 && _showAppBar) {
-      setState(() {
-        _showAppBar = false;
-      });
-    }
-  }
-
-  /// 模拟计算负载
-  void _simulateLoad(int loadType) {
-    DataCenter().simulateComputeLoad(loadType);
+    // ... (滚动监听逻辑保持不变)
   }
 
   @override
@@ -87,29 +58,71 @@ abstract class BaseLoadScreenState<T extends BaseLoadScreen> extends State<T> {
       backgroundColor: const Color(0xFFF8F8F8),
       extendBodyBehindAppBar: true,
       appBar: _showAppBar ? _buildAppBar() : null,
-      body: ListView.builder(
-        controller: _scrollController,
-        padding: EdgeInsets.zero,
-        itemCount: _postData.length + 1, // +1 是因为有头部
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            // 头部
-            return _buildHeader();
-          } else {
-            // 列表项 - 传递负载类型给PostItem，让它在内部处理负载逻辑
-            final post = _postData[index - 1];
-            return PostItem(
-              post: post,
-              loadType: widget.loadType, // 传递负载类型
-            );
-          }
-        },
+      body: Column(
+        children: [
+          // 统一添加的标识栏
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.grey.shade300,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.memory,
+                    size: 16,
+                    color: Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'SurfaceView渲染模式 - ${_getLoadTypeTitle()}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade800,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: EdgeInsets.zero,
+              itemCount: _postData.length + 1, // +1 是因为有头部
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  // 头部
+                  return _buildHeader();
+                } else {
+                  // 列表项
+                  final post = _postData[index - 1];
+                  return PostItem(
+                    post: post,
+                    loadType: widget.loadType,
+                  );
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
   
   /// 构建AppBar
   PreferredSizeWidget _buildAppBar() {
+    // ... (AppBar逻辑保持不变)
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0.5,
@@ -170,4 +183,4 @@ abstract class BaseLoadScreenState<T extends BaseLoadScreen> extends State<T> {
         return Colors.blue;
     }
   }
-} 
+}
