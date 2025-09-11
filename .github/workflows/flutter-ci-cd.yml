@@ -50,12 +50,7 @@ jobs:
           echo "🔐 Setting up Android app signing for ${{ matrix.project.name }}..."
           mkdir -p ${{ matrix.project.name }}/android/app/signing
           echo "$KEYSTORE_BASE64" | base64 -d > ${{ matrix.project.name }}/android/app/signing/release.keystore
-          cat > ${{ matrix.project.name }}/android/app/signing/keystore.properties <<EOF
-storeFile=signing/release.keystore
-storePassword=$STORE_PASSWORD
-keyAlias=$KEY_ALIAS
-keyPassword=$KEY_PASSWORD
-EOF
+          echo -e "storeFile=signing/release.keystore\nstorePassword=$STORE_PASSWORD\nkeyAlias=$KEY_ALIAS\nkeyPassword=$KEY_PASSWORD" > ${{ matrix.project.name }}/android/app/signing/keystore.properties
           echo "✅ Signing configuration completed."
         else
           echo "⚠️ No signing configuration found, will use debug signing."
