@@ -2,21 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'constants.dart';
 import 'screens/home_screen.dart';
-import 'screens/light_load_screen.dart';
-import 'screens/medium_load_screen.dart';
-import 'screens/heavy_load_screen.dart';
+import 'screens/unified_load_screen.dart';
 
 void main() async {
-  // 确保Flutter绑定初始化
+  // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 设置应用方向为竖屏
+  // Set app orientation to portrait
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // 设置状态栏颜色
+  // Set status bar color
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -24,17 +22,26 @@ void main() async {
     ),
   );
 
-  // 获取初始路由
+  // Get initial load type
   const platform = MethodChannel('app.channel.shared.data');
-  final String? initialLoad = await platform.invokeMethod('getInitialLoad');
+  String? initialLoad;
+  try {
+    initialLoad = await platform.invokeMethod('getInitialLoad');
+  } catch (e) {
+    // If retrieval fails, use default value
+    initialLoad = null;
+  }
 
-  Widget homeWidget = const HomeScreen();
-  if (initialLoad == 'light') {
-    homeWidget = const LightLoadScreen(loadType: Constants.LOAD_TYPE_LIGHT);
-  } else if (initialLoad == 'medium') {
-    homeWidget = const MediumLoadScreen(loadType: Constants.LOAD_TYPE_MEDIUM);
-  } else if (initialLoad == 'heavy') {
-    homeWidget = const HeavyLoadScreen(loadType: Constants.LOAD_TYPE_HEAVY);
+  // Parse load type
+  final loadType = Constants.parseLoadType(initialLoad);
+  
+  Widget homeWidget;
+  if (loadType >= 0) {
+    // Valid load type, go directly to test screen
+    homeWidget = UnifiedLoadScreen(loadType: loadType);
+  } else {
+    // Invalid or unspecified, show home page
+    homeWidget = const HomeScreen();
   }
 
   runApp(MyApp(home: homeWidget));
@@ -47,7 +54,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter V3.29 朋友圈性能功耗测试 Demo (TextureView)',
+      title: 'Flutter V3.29 Performance Test Demo (TextureView)',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
