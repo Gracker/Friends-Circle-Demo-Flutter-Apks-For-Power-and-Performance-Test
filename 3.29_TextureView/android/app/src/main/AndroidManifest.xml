@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="朋友圈V29-TextureView"
+        android:label="Flu-V329-Texture"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

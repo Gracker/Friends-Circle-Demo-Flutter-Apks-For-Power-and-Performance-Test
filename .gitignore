@@ -32,11 +32,22 @@
 **/ios/.symlinks/
 **/ios/Runner.xcworkspace/
 
-# Project specific - only ignore apk folders in subprojects
-3.27/apk/
-3.29/apk/
+# Project specific - ignore build outputs in subprojects
+3.19_SurfaceView/build/
+3.19_TextureView/build/
+3.27_SurfaceView/build/
+3.27_TextureView/build/
+3.29_SurfaceView/build/
+3.29_TextureView/build/
+
+# Project specific - ignore apk folders in subprojects
+3.19_SurfaceView/apk/
+3.19_TextureView/apk/
+3.27_SurfaceView/apk/
 3.27_TextureView/apk/
+3.29_SurfaceView/apk/
 3.29_TextureView/apk/
+
 **/.fvm/
 **/.fvmrc
 
@@ -47,19 +58,14 @@
 *.swp
 *.swo
 
-# Build outputs in subprojects
-3.27/build/
-3.29/build/
-3.27_TextureView/build/
-3.29_TextureView/build/
-
 # Keep root level files and folders
-!/apk/
+!/apk-release/
 !/*.sh
 !/*.md
+!/.github/
 
 # Android signing (keep template, ignore actual files)
 android/signing/keystore.properties
 android/signing/*.keystore
 android/signing/*.jks
-!android/signing/*.template 
+!android/signing/*.template
