@@ -40,20 +40,13 @@ log_header() {
 log_header "Flutter 朋友圈性能测试 - Release APK 构建脚本"
 echo ""
 
-# 检查 Flutter 是否安装
-if ! command -v flutter &> /dev/null; then
-    log_error "Flutter 命令未找到。请确保 Flutter SDK 已安装并添加到 PATH。"
+# 检查 FVM 是否安装
+if ! command -v fvm &> /dev/null; then
+    log_error "FVM 命令未找到。请先安装 FVM: brew install fvm"
     exit 1
 fi
 
-# 检查设备连接（可选）
-check_device() {
-    if ! flutter devices | grep -q "android"; then
-        log_warning "没有检测到 Android 设备。构建完成后需要手动安装 APK。"
-        return 1
-    fi
-    return 0
-}
+log_info "使用 FVM 管理多个 Flutter 版本"
 
 # 创建输出目录
 OUTPUT_DIR="apk-release"
@@ -106,14 +99,34 @@ for config in "${MODULE_CONFIG[@]}"; do
         continue
     fi
 
-    # 获取 Flutter 版本信息
-    FLUTTER_VERSION=$(grep "flutter:" pubspec.yaml | head -1 | sed 's/.*: "\(.*\)".*/\1/' || echo "unknown")
-    log_info "Flutter 版本要求: $FLUTTER_VERSION"
+    # 获取当前项目实际使用的 Flutter 版本
+    if [ -f ".fvm/fvm_config.json" ]; then
+        FVM_FLUTTER_VERSION=$(cat .fvm/fvm_config.json | grep '"flutterSdkVersion"' | sed 's/.*": "\(.*\)".*/\1/')
+        log_info "使用 Flutter 版本: $FVM_FLUTTER_VERSION (通过 FVM)"
+    else
+        log_warning "未找到 .fvm/fvm_config.json，使用系统默认 Flutter"
+    fi
 
-    # 执行 Flutter 构建
+    # 执行 Flutter 构建（使用 FVM）
     log_info "开始构建 Release APK..."
 
-    if flutter build apk --release; then
+    # 生成正确的 local.properties，指向 FVM 管理的 Flutter SDK
+    if [ -f ".fvm/fvm_config.json" ]; then
+        FVM_FLUTTER_VERSION=$(cat .fvm/fvm_config.json | grep '"flutterSdkVersion"' | sed 's/.*": "\(.*\)".*/\1/')
+        FLUTTER_SDK_DIR="${HOME}/fvm/versions/${FVM_FLUTTER_VERSION}"
+        if [ -d "$FLUTTER_SDK_DIR" ]; then
+            # 生成 local.properties，包含 Flutter SDK 路径和源目录
+            cat > android/local.properties << EOF
+flutter.sdk=${FLUTTER_SDK_DIR}
+flutter.source=../..
+EOF
+            log_info "Flutter SDK: $FLUTTER_SDK_DIR"
+        else
+            log_warning "FVM Flutter SDK 目录不存在: $FLUTTER_SDK_DIR"
+        fi
+    fi
+
+    if fvm flutter build apk --release; then
         # 查找生成的 APK 文件
         APK_PATH=$(find build/app/outputs/flutter-apk -name "app-release.apk" 2>/dev/null | head -1)
 

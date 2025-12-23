@@ -60,6 +60,9 @@ jobs:
 
     - name: Build Flutter APK for ${{ matrix.project.description }}
       run: |
+        echo "🔍 Verifying Flutter version..."
+        flutter --version
+        echo "📦 Building ${{ matrix.project.name }}..."
         cd ${{ matrix.project.name }}
         flutter clean
         flutter pub get
