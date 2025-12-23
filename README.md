@@ -119,27 +119,302 @@ In Perfetto, you can see the following threads:
 
 ### GPU Communication Differences
 
-#### Skia (3.19) - queueBuffer/dequeueBuffer
+#### Skia (3.19) - SurfaceView Mode
+
+**Architecture: Dual Pipeline (双管道并行)**
+
+SurfaceView creates two independent rendering pipelines:
+
+- **Pipeline A (Flutter)**: Renders actual content
+- **Pipeline B (Android App)**: Renders window chrome (Status Bar, Nav Bar) + defines SurfaceView position
+
+---
+
+**Phase 1: Production (Flutter Raster Thread) - Independent Path**
 
 ```
-[1.ui] → queueBuffer() → SurfaceFlinger → dequeueBuffer()
-         └─ Producer buffer enqueue
+Vsync Signal
+    ↓
+[1.raster] LayerTree rasterization → GraphicBuffer
+    ↓
+    BufferQueue::queueBuffer()
+    (Flutter's ANativeWindow maps directly to a SurfaceFlinger Layer)
+    ↓
+    *** Direct Submission ***
+    (No Android Main Thread or RenderThread involvement)
+    ↓
+    Shared Memory → SurfaceFlinger receives "Frame Available" directly
+```
+
+---
+
+**Phase 2: Hole Punching (Android RenderThread)**
+
+```
+Vsync-App Signal (Parallel, non-blocking)
+    ↓
+[RenderThread] Draw App Window UI
+    ↓
+    At SurfaceView region: Draw transparent pixels
+    (This creates a "hole" in the app window)
+    ↓
+    Z-Order: SurfaceView (Z=-1) behind App Window (Z=0)
+    ↓
+    BufferQueue::queueBuffer() (App Window with transparent hole)
+```
+
+---
+
+**Phase 3: System Composition (SurfaceFlinger & HWC - ZERO-COPY)**
+
+```
+[SurfaceFlinger]
+    ↓
+    Collect multiple layers in one Vsync period:
+    ├─ App Window Buffer (with transparent hole at SurfaceView position)
+    └─ Flutter Surface Buffer (actual content)
+    ↓
+    ╔════════════════════════════════════════════════════════════════════════════╗
+    ║  *** ZERO-COPY / HARDWARE OVERLAY ***                                   ║
+    ║  SF → HWC: "Set Layer 1 (App Window, Z=0)"                               ║
+    ║         "Set Layer 2 (SurfaceView, Z=-1)"                              ║
+    ║  HWC: Hardware Overlay composition                                        ║
+    ║  NO GPU synthesis - Direct Display Processor scanout                      ║
+    ║  Cost: Zero copy, GPU may stay idle                                     ║
+    ╚════════════════════════════════════════════════════════════════════════════╝
+```
+
+**Sequence Diagram**:
+
+```
+┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐
+│ Vsync   │    │ Flutter  │    │Buffer    │    │ Android  │    │ Surface  │    │ Display │
+│ Signal  │    │ Raster   │    │ Queue    │    │ Render   │    │Flinger   │    │  (HWC)  │
+└────┬────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘
+     │              │               │              │              │              │
+     │ Vsync        │               │              │ Vsync        │              │
+     ├─────────────>│               │              ├─────────────>│              │
+     │              │               │              │              │              │
+     │ *** Pipeline A: Flutter Content *** │              │              │              │
+     │              │ Rasterize      │              │              │              │
+     │              │ to GraphicBuf │              │              │              │
+     │              │──────────────>│              │              │              │
+     │              │               │ queueBuffer()│              │              │
+     │              │               │──────────────│─────────────>│              │
+     │              │               │              │ (Direct to SF)│              │
+     │              │               │              │              │              │
+     │ *** Pipeline B: Window Hole Punch *** (Parallel) │              │              │
+     │              │               │              │ Draw App UI  │              │
+     │              │               │              ├──────────────>              │
+     │              │               │              │ Draw transparent│              │
+     │              │               │              │ at SurfaceView│              │
+     │              │               │              │              │              │
+     │              │               │              │ queueBuffer()│              │
+     │              │               │              │──────────────│─────────────>│
+     │              │               │              │              │              │
+     │              │               │              │              │ acquireBuf()│
+     │              │               │              │              │<─────────────│
+     │              │               │              │              │ acquireBuf()│
+     │              │               │              │              │<─────────────│
+     │              │               │              │              │              │
+     │              │               │              │              │ *** HWC Overlay***
+     │              │               │              │              │ Layer 1: App │
+     │              │               │              │              │ Layer 2: Flutter
+     │              │               │              │              │─────────────>│
+     │              │               │              │              │   Scanout    │
+```
+
+**Key Differences from TextureView**:
+- **No GPU Copy**: Flutter content bypasses App's RenderThread entirely
+- **Independent Layer**: Flutter Surface is a separate SurfaceFlinger layer
+- **Hole Punching**: App window has transparent region revealing Flutter beneath
+- **Hardware Overlay**: HWC combines layers without GPU synthesis
+
+**Trace Characteristics**:
+- `queueBuffer` on `1.raster` thread → Flutter content to SF (direct)
+- `queueBuffer` on RenderThread → App window with transparent hole
+- `dequeueBuffer` in SurfaceFlinger → acquires both buffers
+- `BLASTBufferQueue_*` symbols visible
+- **No `updateTexImage` or GPU copy operations**
+
+#### TextureView Mode (All Flutter Versions)
+
+TextureView mode has significant overhead due to the GPU copy process. Here's the complete flow:
+
+**Phase 1: Production (Flutter Raster Thread)**
+
+```
+Vsync Signal
+    ↓
+[1.raster] Skia/Impeller rasterization → GraphicBuffer
+    ↓
+    BufferQueue::queueBuffer()
+    (Buffer enters QUEUED state in SurfaceTexture's BufferQueue)
+    ↓
+    onFrameAvailable() callback → Main Thread Handler
+    (Only marks TextureView as dirty, no immediate draw)
+```
+
+**Phase 2: Scheduling (Android Main Thread - Next Vsync)**
+
+```
+Vsync-App Signal (T+16.6ms)
+    ↓
+[Main Thread] performTraversals()
+    ├─ Measure
+    ├─ Layout
+    └─ Draw
+        └─ TextureView.draw() → Creates DisplayList RenderNode
+            (Command: "RenderThread, draw SurfaceTexture content at these coordinates")
+    ↓
+    SyncFrame → Send DisplayList to RenderThread
+```
+
+**Phase 3: Composition & GPU Copy (Android RenderThread - THE PERFORMANCE HOTSPOT)**
+
+```
+[RenderThread]
+    ↓
+    BufferQueue::acquireBuffer() (Lock latest available frame)
+    ↓
+    SurfaceTexture.updateTexImage()
+    (Bind GraphicBuffer as GL_TEXTURE_EXTERNAL_OES)
+    ↓
+    ╔════════════════════════════════════════════════════════════════════════════╗
+    ║  *** CRITICAL PERFORMANCE POINT ***                                         ║
+    ║  drawTexture() → GPU Fragment Shader                                        ║
+    ║  Input:  Flutter OES texture                                                 ║
+    ║  Output: App window FrameBuffer                                             ║
+    ║  Process: GPU samples from OES texture → Color conversion (YUV→RGB)        ║
+    ║           → Writes to window Buffer                                         ║
+    ║  Cost: GPU ALU + Memory Bandwidth ("Extra GPU Copy")                        ║
+    ╚════════════════════════════════════════════════════════════════════════════╝
+```
+
+**Phase 4: System Composition (SurfaceFlinger)**
+
+```
+[RenderThread] queueBuffer() (Complete App Window)
+    ↓
+[SurfaceFlinger]
+    ↓
+    BufferQueueConsumer::acquireBuffer() (App window as Layer)
+    ↓
+    [SF Main Thread] Layer composition (includes TextureView layer)
+    ↓
+    [HWComposer / WHC] Present to Display
+```
+
+**Sequence Diagram**:
+
+```
+┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐    ┌──────────┐
+│ Vsync   │    │ Flutter  │    │Buffer    │    │ Android  │    │ Android  │    │ Surface │    │ Display  │
+│ Signal  │    │ Raster   │    │ Queue    │    │ Main     │    │ Render   │    │Flinger  │    │          │
+└────┬────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘
+     │              │               │              │              │              │              │
+     │ Vsync-App    │               │              │              │              │              │
+     ├─────────────>│               │              │              │              │              │
+     │              │               │              │ Vsync        │              │              │
+     │              │               │              ├─────────────>│              │              │
+     │              │ Rasterize     │              │              │              │              │
+     │              │ to GraphicBuf │              │              │              │              │
+     │              │──────────────>│              │              │              │              │
+     │              │               │ queueBuffer()│              │              │              │
+     │              │               │──────────────│──────────────>│              │              │
+     │              │               │              │ (dirty flag)  │              │              │
+     │              │               │              │<──────────────│              │              │
+     │              │               │              │ onFrameAvail  │              │              │
+     │              │               │              │              │              │              │
+     │     Next Vsync (T+16.6ms)    │              │              │              │              │
+     ├──────────────────────────────>│              │              │              │              │
+     │              │               │              │              │              │              │
+     │              │               │              │performTrav.  │              │              │
+     │              │               │              ├──────────────>│              │              │
+     │              │               │              │              │              │              │
+     │              │               │              │ Build        │              │              │
+     │              │               │              │ DisplayList  │              │              │
+     │              │               │              │──────────────│─────────────>│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ acquireBuf()│              │
+     │              │               │              │              │<─────────────│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ updateTexImage│              │
+     │              │               │              │              │──────────────>              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ *** GPU COPY ***│              │
+     │              │               │              │              │ OES → WindowBuf│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ queueBuffer()│              │
+     │              │               │              │              │─────────────>│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │              │ acquireBuf()│
+     │              │               │              │              │              │<─────────────│
+     │              │               │              │              │              │              │
+     │              │               │              │              │              │ HWC Compose │
+     │              │               │              │              │              │────────────>│
 ```
 
 **Trace Characteristics**:
-- Visible `queueBuffer` and `dequeueBuffer` calls
-- Buffer exchange overhead visible
+- `onFrameAvailable` on Main Thread → callback from BufferQueue
+- `performTraversals` on Main Thread → View system traversal
+- `updateTexImage` on RenderThread → Bind Buffer as OES texture
+- `drawTexture` / `drawRenderNode` on RenderThread → **GPU Copy operation**
+- `queueBuffer` twice: once for Flutter content (SurfaceTexture), once for App window (BLASTBufferQueue)
 
-#### Impeller (3.27/3.29) - QueueSubmit
+**Performance Impact**:
+- **Extra GPU Copy**: Fragment Shader samples from OES texture and writes to window FrameBuffer
+- **Memory Bandwidth**: Each frame consumes additional GPU bandwidth for texture sampling
+- **Vsync Delay**: Flutter content may be one frame behind (produced at T, consumed at T+16.6ms)
+
+#### Impeller (3.27/3.29) - SurfaceView Mode
 
 ```
-[1.ui/main] → QueueSubmit() → GPU
-              └─ Direct command submission
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Flutter App Process                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ [1.ui/main]     Dart code → Impeller Layer tree                           │
+│                      ↓                                                      │
+│ [1.raster]      Impeller rendering → GPU commands (Vulkan/Metal)          │
+│                      ↓                                                      │
+│                  AHardwareQueue_submit() / QueueSubmit()                  │
+│                      └─ Direct GPU command submission                    │
+│                      └─ No intermediate buffer queue                     │
+└──────────────────────┼────────────────────────────────────────────────────┘
+                       ↓ GPU commands
+┌──────────────────────┴─────────────────────────────────────────────────────┐
+│ GPU (Vulkan/Metal)                                                          │
+│                      ↓                                                      │
+│ [HW Composer / WHC] Direct scanout or composition                         │
+│                      ↓                                                      │
+│ Display                                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Trace Characteristics**:
-- Uses `AHardwareQueue_submit` or similar API
-- Reduced buffer exchange overhead
+- `AHardwareQueue_submit` or `vkQueuePresentKHR` on `1.raster` thread
+- No `queueBuffer`/`dequeueBuffer` for rendering (reduced latency)
+- **Key difference**: Impeller bypasses traditional BufferQueue, submits directly to GPU
+
+#### Impeller (3.27/3.29) - TextureView Mode
+
+```
+Same flow as Skia TextureView - TextureView still requires SurfaceTexture path:
+
+[1.ui/main] → Impeller rendering → GPU texture upload → [JNIOnload] updateTexImage()
+                            ↓
+                   Then View system → Window BLASTBufferQueue → SF → Display
+```
+
+**Note**: TextureView mode cannot benefit from Impeller's direct GPU submission due to OpenGL texture requirement. Still goes through full View composition path.
+
+### Summary Table
+
+| Mode | Flutter Version | Buffer Flow | Key Threads | Overhead |
+|------|----------------|-------------|-------------|----------|
+| **SurfaceView** | 3.19 (Skia) | 1.raster → BufferQueue → SF → Display | 1.raster, SF Main | Medium |
+| **SurfaceView** | 3.27/3.29 (Impeller) | 1.raster → GPU (direct) → Display | 1.raster, GPU | **Low** |
+| **TextureView** | All | 1.raster → GPU Texture → JNIOnload → View System → Window BufferQueue → SF | 1.raster, JNIOnload, Main | **High** |
 
 ### Performance Analysis Key Metrics
 
@@ -148,9 +423,12 @@ When analyzing in Perfetto, focus on these slices:
 | Metric | 3.19/3.27 (Non-Merged) | 3.29 (Merged) |
 |--------|------------------------|---------------|
 | **Frame Build Time** | In `BuildFrame` slice on `1.ui` thread | In `BuildFrame` slice on `main` thread |
-| **JNI Overhead** | `main` → `1.ui` inter-thread communication | No cross-thread communication |
-| **GPU Submission** | `1.ui` → `1.raster` → GPU | `main` → `1.raster` → GPU |
+| **JNI Overhead** | `main` ↔ `1.ui` inter-thread communication | No cross-thread communication |
+| **GPU Submission** | `1.ui` → commands → `1.raster` → SurfaceFlinger | `main` → commands → `1.raster` → SurfaceFlinger |
+| **Buffer Exchange** | `queueBuffer/dequeueBuffer` on `1.raster` (SurfaceView) | `QueueSubmit` on `1.raster` (SurfaceView) |
 | **Frame Interval** | More stable frame interval | Potentially tighter frame interval |
+
+**Note**: For TextureView mode, `updateTexImage` is called on `JNIOnload` thread regardless of Flutter version.
 
 ### Trace Characteristics Under Load Testing
 

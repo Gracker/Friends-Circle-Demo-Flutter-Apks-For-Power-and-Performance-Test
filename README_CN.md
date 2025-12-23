@@ -119,27 +119,302 @@
 
 ### GPU 通信差异
 
-#### Skia (3.19) - queueBuffer/dequeueBuffer
+#### Skia (3.19) - SurfaceView 模式
+
+**架构本质：双管道并行 (Dual Pipeline)**
+
+SurfaceView 实际上创建了两个独立的渲染管道：
+
+- **管道 A (Flutter)**: 负责渲染实际内容
+- **管道 B (Android App)**: 负责渲染窗口其余部分 (Status Bar, Nav Bar) + 定义 SurfaceView 位置和尺寸
+
+---
+
+**阶段一：生产阶段 (Flutter Raster Thread) - 独立路径**
 
 ```
-[1.ui] → queueBuffer() → SurfaceFlinger → dequeueBuffer()
-         └─ 生产者缓冲区入队
+Vsync 信号
+    ↓
+[1.raster] LayerTree 光栅化 → GraphicBuffer
+    ↓
+    BufferQueue::queueBuffer()
+    (Flutter 的 ANativeWindow 直接映射到 SurfaceFlinger 的一个 Layer)
+    ↓
+    *** 直接提交 ***
+    (不经过 Android 主线程或 RenderThread)
+    ↓
+    共享内存 → SurfaceFlinger 直接收收到 "Frame Available" 信号
+```
+
+---
+
+**阶段二：挖洞阶段 (Android RenderThread - "Hole Punching")**
+
+```
+Vsync-App 信号 (并行，不阻塞)
+    ↓
+[RenderThread] 绘制应用窗口 UI
+    ↓
+    在 SurfaceView 区域绘制透明像素
+    (在 App 窗口上打一个"洞")
+    ↓
+    Z-Order: SurfaceView (Z=-1) 在 App Window (Z=0) 后面
+    ↓
+    BufferQueue::queueBuffer() (带透明洞的 App 窗口)
+```
+
+---
+
+**阶段三：系统合成阶段 (SurfaceFlinger & HWC - 零拷贝优势)**
+
+```
+[SurfaceFlinger]
+    ↓
+    在一个 Vsync 周期内收集多个图层：
+    ├─ App Window Buffer (SurfaceView 位置为透明洞)
+    └─ Flutter Surface Buffer (实际内容)
+    ↓
+    ╔════════════════════════════════════════════════════════════════════════════╗
+    ║  *** 零拷贝 / 硬件叠加 ***                                             ║
+    ║  SF → HWC: "设置图层 1 (App Window, Z=0)"                              ║
+    ║         "设置图层 2 (SurfaceView, Z=-1)"                             ║
+    ║  HWC: 硬件叠加合成                                                   ║
+    ║  无 GPU 合成 - 显示处理器直接扫描输出                                ║
+    ║  代价: 零拷贝，GPU 可完全闲置                                         ║
+    ╚════════════════════════════════════════════════════════════════════════════╝
+```
+
+**时序图**:
+
+```
+┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐
+│ Vsync   │    │ Flutter  │    │Buffer    │    │ Android  │    │ Surface  │    │ Display │
+│ 信号    │    │ Raster   │    │ Queue    │    │ Render   │    │Flinger   │    │  (HWC)  │
+└────┬────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘
+     │              │               │              │              │              │
+     │ Vsync        │               │              │ Vsync        │              │
+     ├─────────────>│               │              ├─────────────>│              │
+     │              │               │              │              │              │
+     │ *** 管道 A: Flutter 内容 *** │              │              │              │
+     │              │ 光栅化到      │              │              │              │
+     │              │ GraphicBuffer │              │              │              │
+     │              │──────────────>│              │              │              │
+     │              │               │ queueBuffer()│              │              │
+     │              │               │──────────────│─────────────>│              │
+     │              │               │              │ (直接到 SF)  │              │
+     │              │               │              │              │              │
+     │ *** 管道 B: 窗口挖洞 *** (并行) │              │              │
+     │              │               │              │ 绘制 App UI  │              │
+     │              │               │              ├──────────────>              │
+     │              │               │              │ 绘制透明像素│              │
+     │              │               │              │ 在 SurfaceView│              │
+     │              │               │              │              │              │
+     │              │               │              │ queueBuffer()│              │
+     │              │               │              │──────────────│─────────────>│
+     │              │               │              │              │              │
+     │              │               │              │              │ acquireBuf()│
+     │              │               │              │              │<─────────────│
+     │              │               │              │              │ acquireBuf()│
+     │              │               │              │              │<─────────────│
+     │              │               │              │              │              │
+     │              │               │              │              │ *** HWC 叠加***
+     │              │               │              │              │ 图层 1: App │
+     │              │               │              │              │ 图层 2: Flutter
+     │              │               │              │              │─────────────>│
+     │              │               │              │              │   扫描输出  │
+```
+
+**与 TextureView 的关键差异**:
+- **无 GPU 拷贝**: Flutter 内容完全绕过 App 的 RenderThread
+- **独立图层**: Flutter Surface 是 SurfaceFlinger 的独立图层
+- **挖洞机制**: App 窗口在 SurfaceView 位置有透明区域，露出底层的 Flutter
+- **硬件叠加**: HWC 不经过 GPU 合成直接叠加图层
+
+**Trace 特征**:
+- `queueBuffer` 在 `1.raster` 线程 → Flutter 内容直接到 SF
+- `queueBuffer` 在 RenderThread → 带透明洞的 App 窗口
+- `dequeueBuffer` 在 SurfaceFlinger → 获取两个 Buffer
+- Trace 中可见 `BLASTBufferQueue_*` 符号
+- **无 `updateTexImage` 或 GPU 拷贝操作**
+
+#### TextureView 模式 (所有 Flutter 版本)
+
+TextureView 模式因 GPU 拷贝过程而有显著开销。完整流程如下：
+
+**阶段一：生产者阶段 (Flutter Raster Thread)**
+
+```
+Vsync 信号
+    ↓
+[1.raster] Skia/Impeller 光栅化 → GraphicBuffer
+    ↓
+    BufferQueue::queueBuffer()
+    (Buffer 进入 SurfaceTexture 的 BufferQueue，状态变为 QUEUED)
+    ↓
+    onFrameAvailable() 回调 → 主线程 Handler
+    (仅将 TextureView 标记为脏，不立即绘制)
+```
+
+**阶段二：调度阶段 (Android 主线程 - 下一个 Vsync)**
+
+```
+Vsync-App 信号 (T+16.6ms)
+    ↓
+[主线程] performTraversals()
+    ├─ Measure
+    ├─ Layout
+    └─ Draw
+        └─ TextureView.draw() → 创建 DisplayList RenderNode
+            (指令："RenderThread，在这个坐标绘制 SurfaceTexture 的内容")
+    ↓
+    SyncFrame → 发送显示列表到 RenderThread
+```
+
+**阶段三：合成与 GPU 拷贝 (Android RenderThread - 性能热点)**
+
+```
+[RenderThread]
+    ↓
+    BufferQueue::acquireBuffer() (锁定最新可用帧)
+    ↓
+    SurfaceTexture.updateTexImage()
+    (将 GraphicBuffer 绑定为 GL_TEXTURE_EXTERNAL_OES)
+    ↓
+    ╔════════════════════════════════════════════════════════════════════════════╗
+    ║  *** 关键性能损耗点 ***                                                ║
+    ║  drawTexture() → GPU Fragment Shader                                    ║
+    ║  输入:  Flutter OES 纹理                                               ║
+    ║  输出:  应用窗口 FrameBuffer                                             ║
+    ║  过程:  GPU 从 OES 纹理采样 → 色域转换 (YUV→RGB)                    ║
+    ║         → 写入窗口 Buffer                                               ║
+    ║  代价:  GPU 算力 + 显存带宽 ("Extra GPU Copy")                           ║
+    ╚════════════════════════════════════════════════════════════════════════════╝
+```
+
+**阶段四：系统合成阶段 (SurfaceFlinger)**
+
+```
+[RenderThread] queueBuffer() (完整应用窗口)
+    ↓
+[SurfaceFlinger]
+    ↓
+    BufferQueueConsumer::acquireBuffer() (应用窗口作为图层)
+    ↓
+    [SF 主线程] 图层合成 (包括 TextureView 图层)
+    ↓
+    [HWComposer / WHC] 输出到显示器
+```
+
+**时序图**:
+
+```
+┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐    ┌──────────┐
+│ Vsync   │    │ Flutter  │    │Buffer    │    │ Android  │    │ Android  │    │ Surface │    │ Display  │
+│ 信号    │    │ Raster   │    │ Queue    │    │  主线程   │    │ Render   │    │Flinger  │    │          │
+└────┬────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘    └────┬─────┘
+     │              │               │              │              │              │              │
+     │ Vsync-App    │               │              │              │              │              │
+     ├─────────────>│               │              │              │              │              │
+     │              │               │              │ Vsync        │              │              │
+     │              │               │              ├─────────────>│              │              │
+     │              │ 光栅化到      │              │              │              │              │
+     │              │ GraphicBuffer │              │              │              │              │
+     │              │──────────────>│              │              │              │              │
+     │              │               │ queueBuffer()│              │              │              │
+     │              │               │──────────────│──────────────>│              │              │
+     │              │               │              │ (脏标记)     │              │              │
+     │              │               │              │<──────────────│              │              │
+     │              │               │              │ onFrameAvail  │              │              │
+     │              │               │              │              │              │              │
+     │     下一个 Vsync (T+16.6ms)    │              │              │              │              │
+     ├──────────────────────────────>│              │              │              │              │
+     │              │               │              │              │              │              │
+     │              │               │              │ performTrav. │              │              │
+     │              │               │              ├──────────────>│              │              │
+     │              │               │              │              │              │              │
+     │              │               │              │ 构建         │              │              │
+     │              │               │              │ DisplayList  │              │              │
+     │              │               │              │──────────────│─────────────>│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ acquireBuf()│              │
+     │              │               │              │              │<─────────────│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ updateTexImage│              │
+     │              │               │              │              │──────────────>              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ *** GPU 拷贝***│              │
+     │              │               │              │              │ OES → 窗口Buf│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │ queueBuffer()│              │
+     │              │               │              │              │─────────────>│              │
+     │              │               │              │              │              │              │
+     │              │               │              │              │              │ acquireBuf()│
+     │              │               │              │              │              │<─────────────│
+     │              │               │              │              │              │              │
+     │              │               │              │              │              │ HWC 合成  │
+     │              │               │              │              │              │────────────>│
 ```
 
 **Trace 特征**:
-- 可以看到 `queueBuffer` 和 `dequeueBuffer` 调用
-- Buffer 交换开销可见
+- `onFrameAvailable` 在主线程 → BufferQueue 回调
+- `performTraversals` 在主线程 → View 系统遍历
+- `updateTexImage` 在 RenderThread → 绑定 Buffer 为 OES 纹理
+- `drawTexture` / `drawRenderNode` 在 RenderThread → **GPU 拷贝操作**
+- `queueBuffer` 两次：一次用于 Flutter 内容 (SurfaceTexture)，一次用于应用窗口 (BLASTBufferQueue)
 
-#### Impeller (3.27/3.29) - QueueSubmit
+**性能影响**:
+- **额外 GPU 拷贝**: Fragment Shader 从 OES 纹理采样并写入窗口 FrameBuffer
+- **显存带宽**: 每帧消耗额外的 GPU 纹理采样带宽
+- **Vsync 延迟**: Flutter 内容可能落后一帧 (T 时刻生产，T+16.6ms 时刻消费)
+
+#### Impeller (3.27/3.29) - SurfaceView 模式
 
 ```
-[1.ui/main] → QueueSubmit() → GPU
-              └─ 直接命令提交
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Flutter App 进程                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ [1.ui/main]     Dart 代码 → Impeller Layer 树                             │
+│                      ↓                                                      │
+│ [1.raster]      Impeller 渲染 → GPU 命令 (Vulkan/Metal)                   │
+│                      ↓                                                      │
+│                  AHardwareQueue_submit() / QueueSubmit()                  │
+│                      └─ 直接 GPU 命令提交                                  │
+│                      └─ 无中间 buffer queue                               │
+└──────────────────────┼────────────────────────────────────────────────────┘
+                       ↓ GPU 命令
+┌──────────────────────┴─────────────────────────────────────────────────────┐
+│ GPU (Vulkan/Metal)                                                          │
+│                      ↓                                                      │
+│ [HW Composer / WHC] 直接扫描输出或合成                                    │
+│                      ↓                                                      │
+│ Display 显示器                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Trace 特征**:
-- 使用 `AHardwareQueue_submit` 或类似 API
-- 减少 Buffer 交换开销
+- `AHardwareQueue_submit` 或 `vkQueuePresentKHR` 在 `1.raster` 线程
+- 渲染无 `queueBuffer`/`dequeueBuffer`（降低延迟）
+- **关键差异**: Impeller 绕过传统 BufferQueue，直接提交到 GPU
+
+#### Impeller (3.27/3.29) - TextureView 模式
+
+```
+与 Skia TextureView 流程相同 - TextureView 仍需走 SurfaceTexture 路径:
+
+[1.ui/main] → Impeller 渲染 → GPU 纹理上传 → [JNIOnload] updateTexImage()
+                            ↓
+                   然后 View 系统 → 窗口 BLASTBufferQueue → SF → 显示
+```
+
+**注**: TextureView 模式因 OpenGL 纹理需求，无法享受 Impeller 的直接 GPU 提交优势。仍需经过完整的 View 合成流程。
+
+### 总结表格
+
+| 模式 | Flutter 版本 | Buffer 流转 | 关键线程 | 开销 |
+|------|-------------|-------------|----------|------|
+| **SurfaceView** | 3.19 (Skia) | 1.raster → BufferQueue → SF → 显示 | 1.raster, SF 主线程 | 中等 |
+| **SurfaceView** | 3.27/3.29 (Impeller) | 1.raster → GPU (直接) → 显示 | 1.raster, GPU | **低** |
+| **TextureView** | 所有版本 | 1.raster → GPU 纹理 → JNIOnload → View 系统 → 窗口 BufferQueue → SF | 1.raster, JNIOnload, 主线程 | **高** |
 
 ### 性能分析关键指标
 
@@ -148,9 +423,12 @@
 | 指标 | 3.19/3.27 (非融合) | 3.29 (融合) |
 |------|-------------------|-------------|
 | **帧构建时间** | 在 `1.ui` 线程的 `BuildFrame` 切片中 | 在 `main` 线程的 `BuildFrame` 切片中 |
-| **JNI 开销** | `main` → `1.ui` 线程间通信 | 无跨线程通信 |
-| **GPU 提交** | `1.ui` → `1.raster` → GPU | `main` → `1.raster` → GPU |
+| **JNI 开销** | `main` ↔ `1.ui` 线程间通信 | 无跨线程通信 |
+| **GPU 提交** | `1.ui` → 渲染命令 → `1.raster` → SurfaceFlinger | `main` → 渲染命令 → `1.raster` → SurfaceFlinger |
+| **Buffer 交换** | `1.raster` 线程上的 `queueBuffer/dequeueBuffer` (SurfaceView) | `1.raster` 线程上的 `QueueSubmit` (SurfaceView) |
 | **帧间隔** | 更稳定的帧间隔 | 可能更紧凑的帧间隔 |
+
+**注**: TextureView 模式下，无论 Flutter 版本如何，`updateTexImage` 都在 `JNIOnload` 线程调用。
 
 ### 负载测试下的 Trace 特征
 
