@@ -42,10 +42,7 @@ jobs:
         cache: true
 
     - name: Generate local.properties for Gradle
-      run: |
-        FLUTTER_ROOT=$(flutter sdk-path)
-        echo "flutter.sdk=$FLUTTER_ROOT" > ${{ matrix.project.name }}/android/local.properties
-        echo "Flutter SDK path: $FLUTTER_ROOT"
+      run: echo "flutter.sdk=$FLUTTER_ROOT" > ${{ matrix.project.name }}/android/local.properties
 
     - name: Decode Keystore and Setup Signing
       env:
