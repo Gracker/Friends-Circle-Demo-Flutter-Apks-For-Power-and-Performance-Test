@@ -41,9 +41,6 @@ jobs:
         channel: 'stable'
         cache: true
 
-    - name: Generate local.properties for Gradle
-      run: echo "flutter.sdk=$FLUTTER_ROOT" > ${{ matrix.project.name }}/android/local.properties
-
     - name: Decode Keystore and Setup Signing
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -66,6 +63,7 @@ jobs:
         cd ${{ matrix.project.name }}
         flutter clean
         flutter pub get
+        echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
         flutter build apk --release
 
     - name: Upload APK as artifact
