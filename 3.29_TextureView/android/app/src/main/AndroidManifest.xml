@@ -21,6 +21,10 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Set the rendering mode to TextureView -->
+            <meta-data
+              android:name="io.flutter.embedding.android.RenderMode"
+              android:value="texture" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

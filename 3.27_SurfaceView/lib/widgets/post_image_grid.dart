@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import '../utils/asset_generator.dart';
 
@@ -36,7 +38,7 @@ class PostImageGrid extends StatelessWidget {
     
     // 确定列数 (与NineGridView完全一致)
     // 如果是4张图片，使用2列；否则最多3列
-    final int columns = itemCount == 4 ? 2 : Math.min(3, itemCount);
+    final int columns = itemCount == 4 ? 2 : min(3, itemCount);
     
     // 计算行数 (使用ceil确保有足够的行)
     final int rows = (itemCount / columns).ceil();
@@ -80,18 +82,12 @@ class PostImageGrid extends StatelessWidget {
           top: top,
           width: singleWidth,
           height: singleWidth,
-          child: GestureDetector(
-            onTap: () {
-              // 可以在这里添加点击事件处理
-              print('Tapped image at index $index');
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: AssetGenerator().generateImageWidget(
-                "$postId-$index", 
-                width: singleWidth,
-                height: singleWidth,
-              ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: AssetGenerator().generateImageWidget(
+              "$postId-$index",
+              width: singleWidth,
+              height: singleWidth,
             ),
           ),
         );
@@ -99,7 +95,3 @@ class PostImageGrid extends StatelessWidget {
     );
   }
 }
-
-class Math {
-  static int min(int a, int b) => a < b ? a : b;
-} 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/post_model.dart';
-import '../models/user_model.dart';
 import '../models/comment_model.dart';
 
 /// 朋友圈帖子动作栏组件（点赞、评论）

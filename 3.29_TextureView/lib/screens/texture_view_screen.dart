@@ -84,7 +84,7 @@ class _TextureViewScreenState extends State<TextureViewScreen> {
 
   /// 构建朋友圈列表
   Widget _buildFriendsList() {
-    final friendsData = DataCenter().getFriendCircleData(1); // 使用轻负载数据
+    final friendsData = DataCenter().getFriendCircleDataForLoadType(1); // 使用轻负载数据
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
       itemCount: friendsData.length,
@@ -149,25 +149,5 @@ class _TextureViewScreenState extends State<TextureViewScreen> {
         );
       },
     );
-  }
-
-  /// 处理点赞
-  void _handleLike(String postId) {
-    // 更新TextureView内容
-    TextureViewBridge.updateContent({
-      'action': 'like',
-      'postId': postId,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
-  }
-
-  /// 处理评论
-  void _handleComment(String postId) {
-    // 更新TextureView内容
-    TextureViewBridge.updateContent({
-      'action': 'comment',
-      'postId': postId,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
   }
 }

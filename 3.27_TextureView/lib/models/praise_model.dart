@@ -17,7 +17,7 @@ class PraiseModel {
     return PraiseModel(
       id: 'praise_${postIndex}_$praiseIndex',
       user: user,
-      createTime: DateTime.now().subtract(Duration(minutes: praiseIndex * 5)),
+      createTime: DateTime(2024, 1, 15, 12, 0, 0).subtract(Duration(minutes: praiseIndex * 5)),
     );
   }
 } 

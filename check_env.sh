@@ -3,7 +3,7 @@
 # Flutter Friends Circle Project - Environment Check Script
 # Usage: ./check_env.sh
 
-# 颜色定义
+# Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -11,113 +11,148 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 NC='\033[0m'
 
-echo -e "${PURPLE}🔍 Flutter Friends Circle Project Environment Check${NC}"
+echo -e "${PURPLE}Flutter Friends Circle Project Environment Check${NC}"
 echo -e "${PURPLE}================================================${NC}"
 
-# Check FVM
-echo -e "\n${BLUE}📦 FVM Check${NC}"
-if command -v fvm >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ FVM installed: $(fvm --version)${NC}"
+READY=true
+
+# Check JDK
+echo -e "\n${BLUE}JDK Check${NC}"
+if command -v java >/dev/null 2>&1; then
+    JAVA_VER=$(java -version 2>&1 | head -1)
+    echo -e "${GREEN}  JDK installed: ${JAVA_VER}${NC}"
+    if java -version 2>&1 | grep -q '"17\.\|"21\.'; then
+        echo -e "${GREEN}  JDK version OK (17+)${NC}"
+    else
+        echo -e "${YELLOW}  JDK 17+ recommended for Gradle builds${NC}"
+    fi
 else
-    echo -e "${RED}❌ FVM not installed${NC}"
-    echo -e "${YELLOW}   Install command: dart pub global activate fvm${NC}"
+    echo -e "${RED}  JDK not installed${NC}"
+    echo -e "${YELLOW}   Install JDK 17: brew install openjdk@17${NC}"
+    READY=false
 fi
 
-# Check Flutter versions
-echo -e "\n${BLUE}📱 Flutter Version Check${NC}"
-echo "Installed Flutter versions:"
+# Check Android SDK
+echo -e "\n${BLUE}Android SDK Check${NC}"
+if [ -n "$ANDROID_HOME" ] || [ -n "$ANDROID_SDK_ROOT" ]; then
+    SDK_PATH="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+    echo -e "${GREEN}  Android SDK found: ${SDK_PATH}${NC}"
+else
+    echo -e "${YELLOW}  ANDROID_HOME / ANDROID_SDK_ROOT not set${NC}"
+    if [ -d "$HOME/Library/Android/sdk" ]; then
+        echo -e "${GREEN}  Found SDK at default location: ~/Library/Android/sdk${NC}"
+    elif [ -d "$HOME/Android/Sdk" ]; then
+        echo -e "${GREEN}  Found SDK at default location: ~/Android/Sdk${NC}"
+    else
+        echo -e "${RED}  Android SDK not found${NC}"
+        READY=false
+    fi
+fi
+
+# Check ADB
+echo -e "\n${BLUE}ADB Check${NC}"
+if command -v adb >/dev/null 2>&1; then
+    echo -e "${GREEN}  ADB installed: $(adb version | head -1)${NC}"
+else
+    echo -e "${RED}  ADB not installed or not in PATH${NC}"
+    READY=false
+fi
+
+# Check FVM
+echo -e "\n${BLUE}FVM Check${NC}"
 if command -v fvm >/dev/null 2>&1; then
+    echo -e "${GREEN}  FVM installed: $(fvm --version)${NC}"
+else
+    echo -e "${RED}  FVM not installed${NC}"
+    echo -e "${YELLOW}   Install: dart pub global activate fvm${NC}"
+    READY=false
+fi
+
+# Check Flutter versions via FVM
+echo -e "\n${BLUE}Flutter Version Check${NC}"
+if command -v fvm >/dev/null 2>&1; then
+    echo "Installed Flutter versions:"
     fvm list
 else
-    echo -e "${RED}❌ Cannot check, FVM not installed${NC}"
+    echo -e "${RED}  Cannot check, FVM not installed${NC}"
 fi
 
-# Check project configuration
-echo -e "\n${BLUE}🏗️  Project Configuration Check${NC}"
-if [ -f "3.27/.fvmrc" ]; then
-    echo -e "${GREEN}✅ 3.27 version config: $(cat 3.27/.fvmrc)${NC}"
-else
-    echo -e "${RED}❌ 3.27 version config missing${NC}"
-    echo -e "${YELLOW}   Run: cd 3.27 && fvm use 3.27.0${NC}"
-fi
+# Check project configuration for all 6 variants
+echo -e "\n${BLUE}Project Configuration Check${NC}"
 
-if [ -f "3.29/.fvmrc" ]; then
-    echo -e "${GREEN}✅ 3.29 version config: $(cat 3.29/.fvmrc)${NC}"
-else
-    echo -e "${RED}❌ 3.29 version config missing${NC}"
-    echo -e "${YELLOW}   Run: cd 3.29 && fvm use 3.29.0${NC}"
-fi
+VARIANTS=("3.19_SurfaceView" "3.19_TextureView" "3.27_SurfaceView" "3.27_TextureView" "3.29_SurfaceView" "3.29_TextureView")
+
+for VARIANT in "${VARIANTS[@]}"; do
+    if [ -d "$VARIANT" ]; then
+        # Check for FVM config (.fvmrc or .fvm/fvm_config.json)
+        if [ -f "$VARIANT/.fvmrc" ] || [ -f "$VARIANT/.fvm/fvm_config.json" ]; then
+            echo -e "${GREEN}  $VARIANT: FVM config found${NC}"
+        else
+            echo -e "${RED}  $VARIANT: FVM config missing${NC}"
+            READY=false
+        fi
+    else
+        echo -e "${RED}  $VARIANT: directory not found${NC}"
+        READY=false
+    fi
+done
 
 # Check Android devices
-echo -e "\n${BLUE}📱 Android Device Check${NC}"
+echo -e "\n${BLUE}Android Device Check${NC}"
 if command -v adb >/dev/null 2>&1; then
-    DEVICES=$(adb devices | grep -v "List of devices" | grep device | wc -l)
-    if [ $DEVICES -gt 0 ]; then
-        echo -e "${GREEN}✅ Detected $DEVICES Android device(s)${NC}"
+    DEVICES=$(adb devices 2>/dev/null | grep -w "device$" | wc -l)
+    if [ "$DEVICES" -gt 0 ]; then
+        echo -e "${GREEN}  Detected $DEVICES Android device(s)${NC}"
         adb devices
     else
-        echo -e "${YELLOW}⚠️  No Android devices detected${NC}"
+        echo -e "${YELLOW}  No Android devices detected${NC}"
         echo -e "${YELLOW}   Please ensure device is connected and USB debugging is enabled${NC}"
     fi
 else
-    echo -e "${RED}❌ ADB not installed or not in PATH${NC}"
+    echo -e "${RED}  ADB not available${NC}"
 fi
 
 # Check build scripts
-echo -e "\n${BLUE}🚀 Build Script Check${NC}"
-if [ -x "build_flutter_apks.sh" ]; then
-    echo -e "${GREEN}✅ Complete build script executable${NC}"
+echo -e "\n${BLUE}Build Script Check${NC}"
+if [ -x "build_release.sh" ]; then
+    echo -e "${GREEN}  build_release.sh executable${NC}"
 else
-    echo -e "${RED}❌ Complete build script not executable${NC}"
-    echo -e "${YELLOW}   Run: chmod +x build_flutter_apks.sh${NC}"
+    if [ -f "build_release.sh" ]; then
+        echo -e "${YELLOW}  build_release.sh exists but not executable${NC}"
+        echo -e "${YELLOW}   Run: chmod +x build_release.sh${NC}"
+    else
+        echo -e "${RED}  build_release.sh not found${NC}"
+    fi
+    READY=false
 fi
 
-if [ -x "quick_build.sh" ]; then
-    echo -e "${GREEN}✅ Quick build script executable${NC}"
+if [ -x "install_apks.sh" ]; then
+    echo -e "${GREEN}  install_apks.sh executable${NC}"
 else
-    echo -e "${RED}❌ Quick build script not executable${NC}"
-    echo -e "${YELLOW}   Run: chmod +x quick_build.sh${NC}"
+    echo -e "${YELLOW}  install_apks.sh not found or not executable (will be generated by build_release.sh)${NC}"
 fi
 
 # Check output directory
-echo -e "\n${BLUE}📦 Output Directory Check${NC}"
-if [ -d "apk" ]; then
-    APK_COUNT=$(find apk -name "*.apk" | wc -l)
-    echo -e "${GREEN}✅ APK output directory exists, contains $APK_COUNT APK file(s)${NC}"
-    if [ $APK_COUNT -gt 0 ]; then
+echo -e "\n${BLUE}Output Directory Check${NC}"
+if [ -d "apk-release" ]; then
+    APK_COUNT=$(find apk-release -name "*.apk" 2>/dev/null | wc -l)
+    echo -e "${GREEN}  apk-release/ directory exists, contains ${APK_COUNT} APK file(s)${NC}"
+    if [ "$APK_COUNT" -gt 0 ]; then
         echo "Recent APK files:"
-        ls -lt apk/*.apk | head -5
+        ls -lt apk-release/*.apk 2>/dev/null | head -6
     fi
 else
-    echo -e "${YELLOW}⚠️  APK output directory does not exist, will be created during build${NC}"
+    echo -e "${YELLOW}  apk-release/ directory does not exist, will be created during build${NC}"
 fi
 
 # Summary
-echo -e "\n${PURPLE}📋 Environment Check Summary${NC}"
+echo -e "\n${PURPLE}Environment Check Summary${NC}"
 echo -e "${PURPLE}=============================${NC}"
 
-# Calculate readiness status
-READY=true
-
-if ! command -v fvm >/dev/null 2>&1; then
-    READY=false
-fi
-
-if [ ! -f "3.27/.fvmrc" ] || [ ! -f "3.29/.fvmrc" ]; then
-    READY=false
-fi
-
-if [ ! -x "build_flutter_apks.sh" ] || [ ! -x "quick_build.sh" ]; then
-    READY=false
-fi
-
 if $READY; then
-    echo -e "${GREEN}🎉 Environment check passed! Ready to build APKs${NC}"
-    echo -e "\n${BLUE}Recommended build commands:${NC}"
-    echo -e "${YELLOW}   ./build_flutter_apks.sh    # Complete build${NC}"
-    echo -e "${YELLOW}   ./quick_build.sh           # Quick build${NC}"
+    echo -e "${GREEN}Environment check passed! Ready to build APKs${NC}"
+    echo -e "\n${BLUE}Build command:${NC}"
+    echo -e "${YELLOW}   ./build_release.sh${NC}"
 else
-    echo -e "${RED}❌ Environment configuration issues found, please fix according to above suggestions${NC}"
+    echo -e "${RED}Environment issues found, please fix according to suggestions above${NC}"
 fi
-
-echo -e "\n${BLUE}💡 For more help information, see: BUILD_GUIDE.md${NC}"

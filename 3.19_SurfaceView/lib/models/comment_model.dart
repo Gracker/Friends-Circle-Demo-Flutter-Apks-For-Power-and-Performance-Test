@@ -70,7 +70,7 @@ class CommentModel {
       id: 'comment_${postIndex}_$commentIndex',
       user: user,
       content: content,
-      createTime: DateTime.now().subtract(Duration(hours: commentIndex * 2)),
+      createTime: DateTime(2024, 1, 15, 12, 0, 0).subtract(Duration(hours: commentIndex * 2)),
       replyTo: replyTo,
     );
   }

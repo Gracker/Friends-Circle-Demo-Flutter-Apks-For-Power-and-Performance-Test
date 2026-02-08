@@ -156,7 +156,7 @@ class AssetGenerator {
       width: double.infinity,
       height: double.infinity,
       errorBuilder: (context, error, stackTrace) {
-        print('Failed to load main background: $error');
+        debugPrint('Failed to load main background: $error');
         // 如果加载失败，显示备用背景
         return Container(
           decoration: BoxDecoration(
@@ -195,7 +195,7 @@ class AssetGenerator {
         height: size,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print('Failed to load main avatar: $error');
+          debugPrint('Failed to load main avatar: $error');
           // 如果加载失败，显示备用头像
           return Container(
             width: size,
@@ -240,7 +240,7 @@ class AssetGenerator {
         height: size,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print('Failed to load avatar: $error for path: $avatarPath');
+          debugPrint('Failed to load avatar: $error for path: $avatarPath');
           // 如果加载失败，显示备用头像
           return _buildFallbackAvatar(userId, size);
         },
@@ -332,7 +332,7 @@ class AssetGenerator {
         height: height,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          print('Failed to load image: $error for path: $imagePath');
+          debugPrint('Failed to load image: $error for path: $imagePath');
           // 如果加载失败，显示备用图片
           return _buildFallbackImage(imageId, width, height);
         },

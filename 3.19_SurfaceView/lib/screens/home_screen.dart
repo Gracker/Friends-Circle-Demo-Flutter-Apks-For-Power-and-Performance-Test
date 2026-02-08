@@ -223,7 +223,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _buildLevelButton(context, loadTypes[2], 'Heavy', color.withOpacity(1.3).withRed((color.red * 0.8).toInt())),
+                    child: _buildLevelButton(context, loadTypes[2], 'Heavy', color.withOpacity(1.0).withRed((color.red * 0.8).toInt())),
                   ),
                 ],
               ),

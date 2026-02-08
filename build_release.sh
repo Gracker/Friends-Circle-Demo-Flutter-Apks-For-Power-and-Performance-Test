@@ -100,6 +100,7 @@ for config in "${MODULE_CONFIG[@]}"; do
     fi
 
     # 获取当前项目实际使用的 Flutter 版本
+    FVM_FLUTTER_VERSION=""
     if [ -f ".fvm/fvm_config.json" ]; then
         FVM_FLUTTER_VERSION=$(cat .fvm/fvm_config.json | grep '"flutterSdkVersion"' | sed 's/.*": "\(.*\)".*/\1/')
         log_info "使用 Flutter 版本: $FVM_FLUTTER_VERSION (通过 FVM)"
@@ -111,10 +112,18 @@ for config in "${MODULE_CONFIG[@]}"; do
     log_info "开始构建 Release APK..."
 
     # 生成正确的 local.properties，指向 FVM 管理的 Flutter SDK
-    if [ -f ".fvm/fvm_config.json" ]; then
-        FVM_FLUTTER_VERSION=$(cat .fvm/fvm_config.json | grep '"flutterSdkVersion"' | sed 's/.*": "\(.*\)".*/\1/')
-        FLUTTER_SDK_DIR="${HOME}/fvm/versions/${FVM_FLUTTER_VERSION}"
-        if [ -d "$FLUTTER_SDK_DIR" ]; then
+    if [ -n "$FVM_FLUTTER_VERSION" ]; then
+        # Resolve the SDK path: try FVM symlink first, then common FVM cache locations
+        FLUTTER_SDK_DIR=""
+        if [ -d ".fvm/flutter_sdk" ]; then
+            FLUTTER_SDK_DIR=$(cd .fvm/flutter_sdk && pwd -P)
+        elif [ -d "${HOME}/fvm/versions/${FVM_FLUTTER_VERSION}" ]; then
+            FLUTTER_SDK_DIR="${HOME}/fvm/versions/${FVM_FLUTTER_VERSION}"
+        elif [ -d "${HOME}/.fvm/versions/${FVM_FLUTTER_VERSION}" ]; then
+            FLUTTER_SDK_DIR="${HOME}/.fvm/versions/${FVM_FLUTTER_VERSION}"
+        fi
+
+        if [ -n "$FLUTTER_SDK_DIR" ] && [ -d "$FLUTTER_SDK_DIR" ]; then
             # 生成 local.properties，包含 Flutter SDK 路径和源目录
             cat > android/local.properties << EOF
 flutter.sdk=${FLUTTER_SDK_DIR}
@@ -122,7 +131,7 @@ flutter.source=../..
 EOF
             log_info "Flutter SDK: $FLUTTER_SDK_DIR"
         else
-            log_warning "FVM Flutter SDK 目录不存在: $FLUTTER_SDK_DIR"
+            log_warning "FVM Flutter SDK 目录未找到 (版本: $FVM_FLUTTER_VERSION)"
         fi
     fi
 
@@ -153,9 +162,6 @@ EOF
     cd ..
     echo ""
 done
-
-# 返回根目录
-cd ..
 
 # 构建结果统计
 log_header "构建结果统计"

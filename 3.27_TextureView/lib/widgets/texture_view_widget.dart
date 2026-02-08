@@ -1,7 +1,4 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 /// TextureView渲染的Flutter组件
@@ -23,33 +20,6 @@ class TextureViewWidget extends StatelessWidget {
     // 目前作为包装器使用，直接返回child
     // 实际的TextureView渲染在Android原生层处理
     return child;
-  }
-}
-
-/// Android平台的TextureView实现
-class _AndroidTextureView extends StatelessWidget {
-  final Widget child;
-  final Map<String, dynamic>? creationParams;
-
-  const _AndroidTextureView({
-    required this.child,
-    this.creationParams,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AndroidView(
-      viewType: 'flutter_texture_view',
-      layoutDirection: TextDirection.ltr,
-      creationParams: creationParams ?? <String, dynamic>{},
-      creationParamsCodec: const StandardMessageCodec(),
-      // 关键配置：使用TextureView渲染模式
-      gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
-      // 配置使用TextureView而不是SurfaceView
-      onPlatformViewCreated: (int id) {
-        debugPrint('TextureView created with id: $id');
-      },
-    );
   }
 }
 

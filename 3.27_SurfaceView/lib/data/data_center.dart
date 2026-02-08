@@ -32,26 +32,6 @@ class DataCenter {
     return data;
   }
 
-  /// Get friend circle data for specified load type (legacy API, compatible)
-  List<FriendCircleModel> getFriendCircleData(int loadType) {
-    // Map old load types to new ones
-    int mappedType;
-    switch (loadType) {
-      case Constants.LOAD_TYPE_LIGHT:
-        mappedType = Constants.LOAD_TYPE_BUILD_LIGHT;
-        break;
-      case Constants.LOAD_TYPE_MEDIUM:
-        mappedType = Constants.LOAD_TYPE_BUILD_MEDIUM;
-        break;
-      case Constants.LOAD_TYPE_HEAVY:
-        mappedType = Constants.LOAD_TYPE_BUILD_HEAVY;
-        break;
-      default:
-        mappedType = loadType;
-    }
-    return getFriendCircleDataForLoadType(mappedType);
-  }
-
   /// Generate friend circle data for specified load type
   List<FriendCircleModel> _generateFriendCircleDataForLoadType(int loadType) {
     // Use LoadCalculator to get data generation parameters
@@ -147,39 +127,4 @@ class DataCenter {
     return contentPool[index % contentPool.length];
   }
 
-  /// Simulate compute load (legacy API, for compatibility)
-  void simulateComputeLoad(int loadType) {
-    int iterations;
-    int complexity = 1;
-
-    switch (loadType) {
-      case Constants.LOAD_TYPE_LIGHT:
-        iterations = Constants.LIGHT_LOAD_COMPUTE_ITERATIONS;
-        complexity = 1;
-        break;
-      case Constants.LOAD_TYPE_MEDIUM:
-        iterations = Constants.MEDIUM_LOAD_COMPUTE_ITERATIONS;
-        complexity = 2;
-        break;
-      case Constants.LOAD_TYPE_HEAVY:
-        iterations = Constants.HEAVY_LOAD_COMPUTE_ITERATIONS;
-        complexity = 3;
-        break;
-      default:
-        iterations = Constants.LIGHT_LOAD_COMPUTE_ITERATIONS;
-        complexity = 1;
-    }
-
-    // Execute compute-intensive operation
-    double result = 0;
-    for (int i = 0; i < iterations; i++) {
-      if (complexity == 1) {
-        result += sin(i.toDouble()) * cos(i.toDouble());
-      } else if (complexity == 2) {
-        result += sin(i.toDouble()) * cos(i.toDouble()) * tan(i.toDouble() % 1.5);
-      } else {
-        result += sin(i.toDouble()) * cos(i.toDouble()) * tan(i.toDouble() % 1.5) * sqrt(i % 10 + 1);
-      }
-    }
-  }
 }

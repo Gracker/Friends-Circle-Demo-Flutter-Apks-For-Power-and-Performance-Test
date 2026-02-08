@@ -93,7 +93,7 @@ class FriendCircleModel {
       user: user,
       content: finalContent,
       imageUrls: imageUrls,
-      createTime: DateTime.now().subtract(Duration(hours: index * 3)),
+      createTime: DateTime(2024, 1, 15, 12, 0, 0).subtract(Duration(hours: index * 3)),
       praises: praises,
       comments: comments,
     );
