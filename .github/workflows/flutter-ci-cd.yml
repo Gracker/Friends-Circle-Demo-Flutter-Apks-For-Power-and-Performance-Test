@@ -19,12 +19,18 @@ jobs:
       fail-fast: false
       matrix:
         project:
-          - { name: '3.19_SurfaceView', flutter: '3.19.0', description: 'V319-Surface' }
-          - { name: '3.19_TextureView', flutter: '3.19.0', description: 'V319-Texture' }
-          - { name: '3.27_SurfaceView', flutter: '3.27.0', description: 'V327-Surface' }
-          - { name: '3.27_TextureView', flutter: '3.27.0', description: 'V327-Texture' }
-          - { name: '3.29_SurfaceView', flutter: '3.29.0', description: 'V329-Surface' }
-          - { name: '3.29_TextureView', flutter: '3.29.0', description: 'V329-Texture' }
+          - { name: '3.19_SurfaceView', flutter: '3.19.0', description: 'V319-Surface',
+              flutter_ver: '3.19', render_mode: 'SurfaceView', package: 'com.example.friendscircle.v19' }
+          - { name: '3.19_TextureView', flutter: '3.19.0', description: 'V319-Texture',
+              flutter_ver: '3.19', render_mode: 'TextureView', package: 'com.example.friendscircle.v19.textureview' }
+          - { name: '3.27_SurfaceView', flutter: '3.27.0', description: 'V327-Surface',
+              flutter_ver: '3.27', render_mode: 'SurfaceView', package: 'com.example.friendscircle.v27' }
+          - { name: '3.27_TextureView', flutter: '3.27.0', description: 'V327-Texture',
+              flutter_ver: '3.27', render_mode: 'TextureView', package: 'com.example.friendscircle.v27.textureview' }
+          - { name: '3.29_SurfaceView', flutter: '3.29.0', description: 'V329-Surface',
+              flutter_ver: '3.29', render_mode: 'SurfaceView', package: 'com.example.friendscircle.v29' }
+          - { name: '3.29_TextureView', flutter: '3.29.0', description: 'V329-Texture',
+              flutter_ver: '3.29', render_mode: 'TextureView', package: 'com.example.friendscircle.v29.textureview' }
 
     steps:
     - name: Checkout repository
@@ -70,7 +76,10 @@ jobs:
         flutter clean
         flutter pub get
         echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
-        flutter build apk --release
+        flutter build apk --release \
+            --dart-define=FLUTTER_VERSION=${{ matrix.project.flutter_ver }} \
+            --dart-define=RENDER_MODE=${{ matrix.project.render_mode }} \
+            --dart-define=PACKAGE_NAME=${{ matrix.project.package }}
 
     - name: Upload APK as artifact
       uses: actions/upload-artifact@v4

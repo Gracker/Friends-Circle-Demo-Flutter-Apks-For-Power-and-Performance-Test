@@ -91,11 +91,29 @@ for VARIANT in "${VARIANTS[@]}"; do
             echo -e "${RED}  $VARIANT: FVM config missing${NC}"
             READY=false
         fi
+        # Check lib/ symlink points to shared source
+        if [ -L "$VARIANT/lib" ] && [ -d "$VARIANT/lib" ]; then
+            echo -e "${GREEN}  $VARIANT: lib/ symlink OK (-> $(readlink "$VARIANT/lib"))${NC}"
+        elif [ -d "$VARIANT/lib" ]; then
+            echo -e "${YELLOW}  $VARIANT: lib/ is a directory (not symlinked to shared/)${NC}"
+        else
+            echo -e "${RED}  $VARIANT: lib/ missing${NC}"
+            READY=false
+        fi
     else
         echo -e "${RED}  $VARIANT: directory not found${NC}"
         READY=false
     fi
 done
+
+# Check shared directory
+if [ -d "shared/lib" ]; then
+    SHARED_FILES=$(find shared/lib -name "*.dart" 2>/dev/null | wc -l | tr -d ' ')
+    echo -e "${GREEN}  shared/lib: ${SHARED_FILES} Dart files${NC}"
+else
+    echo -e "${RED}  shared/lib: directory not found${NC}"
+    READY=false
+fi
 
 # Check Android devices
 echo -e "\n${BLUE}Android Device Check${NC}"

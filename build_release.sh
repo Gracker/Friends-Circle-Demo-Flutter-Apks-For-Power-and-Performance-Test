@@ -53,14 +53,14 @@ OUTPUT_DIR="apk-release"
 mkdir -p "$OUTPUT_DIR"
 log_info "输出目录: $OUTPUT_DIR"
 
-# 定义构建模块（目录名|显示名|包名标识）
+# 定义构建模块（目录名|显示名|包名标识|Flutter版本|渲染模式|包名）
 declare -a MODULE_CONFIG=(
-    "3.19_SurfaceView|Flutter 3.19 SurfaceView|v19sv"
-    "3.19_TextureView|Flutter 3.19 TextureView|v19tv"
-    "3.27_SurfaceView|Flutter 3.27 SurfaceView|v27sv"
-    "3.27_TextureView|Flutter 3.27 TextureView|v27tv"
-    "3.29_SurfaceView|Flutter 3.29 SurfaceView|v29sv"
-    "3.29_TextureView|Flutter 3.29 TextureView|v29tv"
+    "3.19_SurfaceView|Flutter 3.19 SurfaceView|v19sv|3.19|SurfaceView|com.example.friendscircle.v19"
+    "3.19_TextureView|Flutter 3.19 TextureView|v19tv|3.19|TextureView|com.example.friendscircle.v19.textureview"
+    "3.27_SurfaceView|Flutter 3.27 SurfaceView|v27sv|3.27|SurfaceView|com.example.friendscircle.v27"
+    "3.27_TextureView|Flutter 3.27 TextureView|v27tv|3.27|TextureView|com.example.friendscircle.v27.textureview"
+    "3.29_SurfaceView|Flutter 3.29 SurfaceView|v29sv|3.29|SurfaceView|com.example.friendscircle.v29"
+    "3.29_TextureView|Flutter 3.29 TextureView|v29tv|3.29|TextureView|com.example.friendscircle.v29.textureview"
 )
 
 # 构建时间
@@ -75,7 +75,7 @@ FAILED_MODULES=()
 # 处理每个模块
 for config in "${MODULE_CONFIG[@]}"; do
     # 解析配置
-    IFS='|' read -r MODULE_DIR MODULE_NAME MODULE_ID <<< "$config"
+    IFS='|' read -r MODULE_DIR MODULE_NAME MODULE_ID FLUTTER_VER RENDER_MODE PKG_NAME <<< "$config"
 
     log_header "构建: $MODULE_NAME"
     log_info "目录: $MODULE_DIR"
@@ -135,7 +135,10 @@ EOF
         fi
     fi
 
-    if fvm flutter build apk --release; then
+    if fvm flutter build apk --release \
+        --dart-define=FLUTTER_VERSION=$FLUTTER_VER \
+        --dart-define=RENDER_MODE=$RENDER_MODE \
+        --dart-define=PACKAGE_NAME=$PKG_NAME; then
         # 查找生成的 APK 文件
         APK_PATH=$(find build/app/outputs/flutter-apk -name "app-release.apk" 2>/dev/null | head -1)
 
