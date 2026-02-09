@@ -487,18 +487,42 @@ adb shell am start -n com.example.friendscircle.v29.textureview/.MainActivity -e
 
 ```
 FriendsCircle_Flutter/
-├── 3.19_SurfaceView/    # Flutter 3.19 + SurfaceView (Skia)
-├── 3.19_TextureView/    # Flutter 3.19 + TextureView (Skia)
-├── 3.27_SurfaceView/    # Flutter 3.27 + SurfaceView (Impeller)
-├── 3.27_TextureView/    # Flutter 3.27 + TextureView (Impeller)
-├── 3.29_SurfaceView/    # Flutter 3.29 + SurfaceView (Impeller + Main Thread Merger)
-├── 3.29_TextureView/    # Flutter 3.29 + TextureView (Impeller + Main Thread Merger)
-├── build_release.sh     # One-click build script
-├── install_apks.sh      # Batch install script
-├── quick_launch.sh      # Quick launch script
-├── .github/workflows/   # GitHub Actions CI/CD
-└── apk-release/         # APK output directory
+├── shared/                # Single source of truth for all Dart code and assets
+│   ├── lib/               # 18 Dart files (3,749 LOC), parameterized via --dart-define
+│   │   ├── main.dart
+│   │   ├── constants.dart
+│   │   ├── screens/
+│   │   ├── data/
+│   │   ├── models/
+│   │   ├── utils/
+│   │   └── widgets/
+│   └── assets/            # Shared avatars and images
+├── 3.19_SurfaceView/      # Flutter 3.19 + SurfaceView (Skia)
+├── 3.19_TextureView/      # Flutter 3.19 + TextureView (Skia)
+├── 3.27_SurfaceView/      # Flutter 3.27 + SurfaceView (Impeller)
+├── 3.27_TextureView/      # Flutter 3.27 + TextureView (Impeller)
+├── 3.29_SurfaceView/      # Flutter 3.29 + SurfaceView (Impeller + Main Thread Merger)
+├── 3.29_TextureView/      # Flutter 3.29 + TextureView (Impeller + Main Thread Merger)
+├── build_release.sh       # One-click build script
+├── install_apks.sh        # Batch install script
+├── quick_launch.sh        # Quick launch script
+├── check_env.sh           # Environment verification script
+├── .github/workflows/     # GitHub Actions CI/CD
+└── apk-release/           # APK output directory
 ```
+
+### Architecture: Single Source with Build-Time Configuration
+
+All 6 variants share the same Dart source code via symlinks:
+- Each variant's `lib/` and `assets/` are symlinks to `../shared/lib` and `../shared/assets`
+- Each variant retains its own `pubspec.yaml` (Flutter version constraint) and `android/` (namespace, applicationId)
+- Runtime differences are parameterized via `--dart-define` compile-time constants:
+
+| Constant | Description | Example |
+|----------|-------------|---------|
+| `FLUTTER_VERSION` | Flutter version label | `3.19`, `3.27`, `3.29` |
+| `RENDER_MODE` | Rendering surface type | `SurfaceView`, `TextureView` |
+| `PACKAGE_NAME` | Android application ID | `com.example.friendscircle.v27` |
 
 ## Build Instructions
 
@@ -516,6 +540,16 @@ fvm install 3.29.0
 # Each project is configured with the corresponding Flutter version
 # Simply run the build script
 ./build_release.sh
+```
+
+### Manual Build (Single Variant)
+
+```bash
+cd 3.27_SurfaceView
+fvm flutter build apk --release \
+    --dart-define=FLUTTER_VERSION=3.27 \
+    --dart-define=RENDER_MODE=SurfaceView \
+    --dart-define=PACKAGE_NAME=com.example.friendscircle.v27
 ```
 
 ## Load Parameter Configuration

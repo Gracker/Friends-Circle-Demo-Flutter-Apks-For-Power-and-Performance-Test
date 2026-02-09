@@ -519,25 +519,47 @@ adb shell am start -n com.example.friendscircle.v29.textureview/.MainActivity -e
 
 ```
 FriendsCircle_Flutter/
-├── README.md                   # 英文文档
-├── README_CN.md               # 中文文档
-├── build_release.sh           # 完整构建脚本
-├── install_apks.sh            # 批量安装脚本
-├── quick_launch.sh            # 快速启动脚本
-├── .github/workflows/         # GitHub Actions CI/CD
-├── 3.19_SurfaceView/         # Flutter 3.19 (Skia + SurfaceView)
-├── 3.19_TextureView/         # Flutter 3.19 (Skia + TextureView)
-├── 3.27_SurfaceView/         # Flutter 3.27 (Impeller + SurfaceView)
-├── 3.27_TextureView/         # Flutter 3.27 (Impeller + TextureView)
-├── 3.29_SurfaceView/         # Flutter 3.29 (Impeller + 主线程融合 + SurfaceView)
-├── 3.29_TextureView/         # Flutter 3.29 (Impeller + 主线程融合 + TextureView)
-└── apk-release/              # APK输出目录
+├── shared/                     # 所有 Dart 代码和资源的单一来源
+│   ├── lib/                    # 18 个 Dart 文件 (3,749 行)，通过 --dart-define 参数化
+│   │   ├── main.dart
+│   │   ├── constants.dart
+│   │   ├── screens/
+│   │   ├── data/
+│   │   ├── models/
+│   │   ├── utils/
+│   │   └── widgets/
+│   └── assets/                 # 共享头像和图片资源
+├── 3.19_SurfaceView/           # Flutter 3.19 (Skia + SurfaceView)
+├── 3.19_TextureView/           # Flutter 3.19 (Skia + TextureView)
+├── 3.27_SurfaceView/           # Flutter 3.27 (Impeller + SurfaceView)
+├── 3.27_TextureView/           # Flutter 3.27 (Impeller + TextureView)
+├── 3.29_SurfaceView/           # Flutter 3.29 (Impeller + 主线程融合 + SurfaceView)
+├── 3.29_TextureView/           # Flutter 3.29 (Impeller + 主线程融合 + TextureView)
+├── build_release.sh            # 完整构建脚本
+├── install_apks.sh             # 批量安装脚本
+├── quick_launch.sh             # 快速启动脚本
+├── check_env.sh                # 环境检查脚本
+├── .github/workflows/          # GitHub Actions CI/CD
+└── apk-release/                # APK输出目录
 ```
+
+### 架构：单一源码 + 编译时配置
+
+6 个变体共享同一份 Dart 源码（通过符号链接）：
+- 每个变体的 `lib/` 和 `assets/` 均为指向 `../shared/lib` 和 `../shared/assets` 的符号链接
+- 每个变体保留自己的 `pubspec.yaml`（Flutter 版本约束）和 `android/`（namespace、applicationId）
+- 运行时差异通过 `--dart-define` 编译时常量参数化：
+
+| 常量 | 说明 | 示例 |
+|------|------|------|
+| `FLUTTER_VERSION` | Flutter 版本标识 | `3.19`、`3.27`、`3.29` |
+| `RENDER_MODE` | 渲染表面类型 | `SurfaceView`、`TextureView` |
+| `PACKAGE_NAME` | Android 应用 ID | `com.example.friendscircle.v27` |
 
 ## 代码架构
 
 ```
-lib/
+shared/lib/
 ├── main.dart                    # 应用入口，支持ADB深层链接
 ├── constants.dart               # 常量定义（13种负载类型、颜色等）
 ├── data/
@@ -571,6 +593,16 @@ fvm install 3.29.0
 # 每个项目已配置对应的 Flutter 版本
 # 直接运行构建脚本即可
 ./build_release.sh
+```
+
+### 手动构建（单个变体）
+
+```bash
+cd 3.27_SurfaceView
+fvm flutter build apk --release \
+    --dart-define=FLUTTER_VERSION=3.27 \
+    --dart-define=RENDER_MODE=SurfaceView \
+    --dart-define=PACKAGE_NAME=com.example.friendscircle.v27
 ```
 
 ## 负载参数配置
