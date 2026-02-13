@@ -55,12 +55,12 @@ log_info "输出目录: $OUTPUT_DIR"
 
 # 定义构建模块（目录名|显示名|包名标识|Flutter版本|渲染模式|包名）
 declare -a MODULE_CONFIG=(
-    "3.19_SurfaceView|Flutter 3.19 SurfaceView|v19sv|3.19|SurfaceView|com.example.friendscircle.v19"
-    "3.19_TextureView|Flutter 3.19 TextureView|v19tv|3.19|TextureView|com.example.friendscircle.v19.textureview"
-    "3.27_SurfaceView|Flutter 3.27 SurfaceView|v27sv|3.27|SurfaceView|com.example.friendscircle.v27"
-    "3.27_TextureView|Flutter 3.27 TextureView|v27tv|3.27|TextureView|com.example.friendscircle.v27.textureview"
-    "3.29_SurfaceView|Flutter 3.29 SurfaceView|v29sv|3.29|SurfaceView|com.example.friendscircle.v29"
-    "3.29_TextureView|Flutter 3.29 TextureView|v29tv|3.29|TextureView|com.example.friendscircle.v29.textureview"
+    "3.19_SurfaceView|Flutter 3.19 SurfaceView|v19sv|3.19.0|SurfaceView|com.example.friendscircle.v19"
+    "3.19_TextureView|Flutter 3.19 TextureView|v19tv|3.19.0|TextureView|com.example.friendscircle.v19.textureview"
+    "3.27_SurfaceView|Flutter 3.27 SurfaceView|v27sv|3.27.0|SurfaceView|com.example.friendscircle.v27"
+    "3.27_TextureView|Flutter 3.27 TextureView|v27tv|3.27.0|TextureView|com.example.friendscircle.v27.textureview"
+    "3.29_SurfaceView|Flutter 3.29 SurfaceView|v29sv|3.29.0|SurfaceView|com.example.friendscircle.v29"
+    "3.29_TextureView|Flutter 3.29 TextureView|v29tv|3.29.0|TextureView|com.example.friendscircle.v29.textureview"
 )
 
 # 构建时间
@@ -103,10 +103,30 @@ for config in "${MODULE_CONFIG[@]}"; do
     FVM_FLUTTER_VERSION=""
     if [ -f ".fvm/fvm_config.json" ]; then
         FVM_FLUTTER_VERSION=$(cat .fvm/fvm_config.json | grep '"flutterSdkVersion"' | sed 's/.*": "\(.*\)".*/\1/')
-        log_info "使用 Flutter 版本: $FVM_FLUTTER_VERSION (通过 FVM)"
+        log_info "FVM 配置版本: $FVM_FLUTTER_VERSION"
     else
-        log_warning "未找到 .fvm/fvm_config.json，使用系统默认 Flutter"
+        log_warning "未找到 .fvm/fvm_config.json，自动配置 FVM..."
+        if ! fvm install "$FLUTTER_VER" 2>/dev/null; then
+            log_error "FVM 安装 Flutter $FLUTTER_VER 失败"
+            FAILED_MODULES+=("$MODULE_NAME")
+            cd ..
+            continue
+        fi
+        echo "y" | fvm use "$FLUTTER_VER" 2>/dev/null
+        FVM_FLUTTER_VERSION="$FLUTTER_VER"
+        log_info "已自动配置 FVM: $FLUTTER_VER"
     fi
+
+    if [ "$FVM_FLUTTER_VERSION" != "$FLUTTER_VER" ]; then
+        log_error "Flutter 版本不匹配！"
+        log_error "  期望版本: $FLUTTER_VER"
+        log_error "  实际版本: $FVM_FLUTTER_VERSION"
+        log_error "  请运行: cd $MODULE_DIR && fvm use $FLUTTER_VER"
+        FAILED_MODULES+=("$MODULE_NAME")
+        cd ..
+        continue
+    fi
+    log_success "版本校验通过: Flutter $FLUTTER_VER"
 
     # 执行 Flutter 构建（使用 FVM）
     log_info "开始构建 Release APK..."
