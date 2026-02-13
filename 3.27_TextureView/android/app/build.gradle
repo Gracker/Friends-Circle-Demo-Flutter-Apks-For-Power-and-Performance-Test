@@ -4,6 +4,11 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// TraceFix: auto-inject Trace.beginSection/endSection (enabled via TRACEFIX_ENABLED env var)
+if (System.getenv('TRACEFIX_ENABLED') == 'true') {
+    apply plugin: 'auto-add-systrace'
+}
+
 flutter {
     source = "../.."
 }

@@ -8,6 +8,10 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.2.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        // TraceFix: systrace instrumentation (enabled via TRACEFIX_ENABLED env var)
+        if (System.getenv('TRACEFIX_ENABLED') == 'true') {
+            classpath("io.github.gracker:TraceFix:${TRACEFIX_VERSION}") { changing = true }
+        }
     }
 }
 
