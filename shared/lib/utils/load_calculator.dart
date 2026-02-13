@@ -2,18 +2,32 @@ import 'dart:math';
 import 'package:flutter/scheduler.dart';
 import '../constants.dart';
 
+/// Simple Linear Congruential Generator for deterministic pseudo-random
+class _PseudoRandom {
+  int _state;
+  static const int _multiplier = 1103515245;
+  static const int _increment = 12345;
+  static const int _modulus = 2147483648;
+
+  _PseudoRandom(int seed) : _state = seed.abs() % _modulus;
+
+  double nextDouble() {
+    _state = (_multiplier * _state + _increment) % _modulus;
+    return _state / _modulus;
+  }
+
+  int nextInt(int max) {
+    return (nextDouble() * max).toInt();
+  }
+}
+
 /// Load Calculator Utility Class
-///
-/// Provides unified load calculation methods to simulate different types and levels of load:
-/// 1. Build Load - CPU computation during Widget building
-/// 2. Paint Load - Returns drawing parameters, executed by CustomPainter
-/// 3. PostFrame Load - Computation after frame rendering
-/// 4. Mixed Load - Combines Build and PostFrame loads
 class LoadCalculator {
-  // Singleton pattern
   static final LoadCalculator _instance = LoadCalculator._internal();
   factory LoadCalculator() => _instance;
   LoadCalculator._internal();
+
+  static final List<double> _workBuffer = List.filled(256, 0.0);
 
   /// ========== Build Load Calculation ==========
   /// Called in Widget.build() method, generates CPU load
@@ -143,52 +157,62 @@ class LoadCalculator {
   /// Check if load type is PostFrame type
   bool _isPostFrameLoadType(int loadType) {
     return loadType == Constants.LOAD_TYPE_POSTFRAME_LIGHT ||
-           loadType == Constants.LOAD_TYPE_POSTFRAME_MEDIUM ||
-           loadType == Constants.LOAD_TYPE_POSTFRAME_HEAVY ||
-           loadType == Constants.LOAD_TYPE_MIXED_LIGHT ||
-           loadType == Constants.LOAD_TYPE_MIXED_MEDIUM ||
-           loadType == Constants.LOAD_TYPE_MIXED_HEAVY;
+        loadType == Constants.LOAD_TYPE_POSTFRAME_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_POSTFRAME_HEAVY ||
+        loadType == Constants.LOAD_TYPE_MIXED_LIGHT ||
+        loadType == Constants.LOAD_TYPE_MIXED_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_MIXED_HEAVY;
   }
 
   /// Check if load type is Build type
   bool isBuildLoadType(int loadType) {
     return loadType == Constants.LOAD_TYPE_BUILD_LIGHT ||
-           loadType == Constants.LOAD_TYPE_BUILD_MEDIUM ||
-           loadType == Constants.LOAD_TYPE_BUILD_HEAVY ||
-           loadType == Constants.LOAD_TYPE_MIXED_LIGHT ||
-           loadType == Constants.LOAD_TYPE_MIXED_MEDIUM ||
-           loadType == Constants.LOAD_TYPE_MIXED_HEAVY;
+        loadType == Constants.LOAD_TYPE_BUILD_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_BUILD_HEAVY ||
+        loadType == Constants.LOAD_TYPE_MIXED_LIGHT ||
+        loadType == Constants.LOAD_TYPE_MIXED_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_MIXED_HEAVY;
   }
 
   /// Check if load type is Paint type
   bool isPaintLoadType(int loadType) {
     return loadType == Constants.LOAD_TYPE_PAINT_LIGHT ||
-           loadType == Constants.LOAD_TYPE_PAINT_MEDIUM ||
-           loadType == Constants.LOAD_TYPE_PAINT_HEAVY;
+        loadType == Constants.LOAD_TYPE_PAINT_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_PAINT_HEAVY;
   }
 
   /// Check if load type is Mixed type
   bool isMixedLoadType(int loadType) {
     return loadType == Constants.LOAD_TYPE_MIXED_LIGHT ||
-           loadType == Constants.LOAD_TYPE_MIXED_MEDIUM ||
-           loadType == Constants.LOAD_TYPE_MIXED_HEAVY;
+        loadType == Constants.LOAD_TYPE_MIXED_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_MIXED_HEAVY;
   }
 
-  /// ========== Core CPU Calculation Method ==========
+  /// Core CPU Calculation Method with pseudo-random data dependency
   double _performCpuCalculation(int iterations, int complexity) {
+    final random = _PseudoRandom(Constants.RANDOM_SEED);
     double result = 0.0;
+    int bufferIndex = 0;
 
     for (int i = 0; i < iterations; i++) {
+      final double r1 = random.nextDouble();
+      final double r2 = random.nextDouble();
+
       if (complexity == 1) {
-        // Light load - simple calculation
-        result += i * 0.001;
+        result += (i * 0.001 + r1 * 0.0001) + _workBuffer[bufferIndex] * 0.01;
       } else if (complexity == 2) {
-        // Medium load - trigonometric calculation
-        result += sin(i * 0.01) * cos(i * 0.01);
+        final double angle = i * 0.01 + r1;
+        result += sin(angle) * cos(angle + r2) + _workBuffer[bufferIndex];
       } else {
-        // Heavy load - complex math calculation
-        result += sin(i * 0.01) * cos(i * 0.01) * tan((i * 0.01) % 1.5) * sqrt((i % 10) + 1);
+        final double base = i * 0.01 + r1;
+        final double tanArg = (base + r2) % 1.5 + 0.001;
+        result += sin(base) * cos(base) * tan(tanArg) * sqrt((i % 10) + 1 + r1);
+        result +=
+            _workBuffer[bufferIndex] * _workBuffer[(bufferIndex + 128) % 256];
       }
+
+      _workBuffer[bufferIndex] = result * 0.0001;
+      bufferIndex = (bufferIndex + 1) % 256;
     }
 
     return result;
@@ -239,9 +263,9 @@ class LoadCalculator {
         loadType == Constants.LOAD_TYPE_MIXED_LIGHT) {
       return 1;
     } else if (loadType == Constants.LOAD_TYPE_BUILD_MEDIUM ||
-               loadType == Constants.LOAD_TYPE_PAINT_MEDIUM ||
-               loadType == Constants.LOAD_TYPE_POSTFRAME_MEDIUM ||
-               loadType == Constants.LOAD_TYPE_MIXED_MEDIUM) {
+        loadType == Constants.LOAD_TYPE_PAINT_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_POSTFRAME_MEDIUM ||
+        loadType == Constants.LOAD_TYPE_MIXED_MEDIUM) {
       return 2;
     } else {
       return 3;
@@ -251,11 +275,11 @@ class LoadCalculator {
 
 /// Paint Load Parameters Class
 class PaintLoadParams {
-  final int shapeCount;      // Number of shapes to draw
-  final int pathPoints;      // Number of path points
-  final bool enableShadow;   // Enable shadow effect
-  final bool enableBlur;     // Enable blur effect
-  final int complexity;      // Complexity level (1-3)
+  final int shapeCount; // Number of shapes to draw
+  final int pathPoints; // Number of path points
+  final bool enableShadow; // Enable shadow effect
+  final bool enableBlur; // Enable blur effect
+  final int complexity; // Complexity level (1-3)
 
   PaintLoadParams({
     required this.shapeCount,
@@ -279,9 +303,9 @@ class PaintLoadParams {
 
 /// Data Generation Parameters Class
 class DataGenerationParams {
-  final int maxComments;  // Max comment count
-  final int maxPraises;   // Max like count
-  final int maxImages;    // Max image count
+  final int maxComments; // Max comment count
+  final int maxPraises; // Max like count
+  final int maxImages; // Max image count
 
   DataGenerationParams({
     required this.maxComments,

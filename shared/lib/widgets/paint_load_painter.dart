@@ -11,12 +11,9 @@ import '../constants.dart';
 /// - Heavy load: Draw many complex shapes + shadows + blur
 class PaintLoadPainter extends CustomPainter {
   final PaintLoadParams params;
-  final int seed;  // Random seed for consistency
+  final int seed; // Random seed for consistency
 
-  PaintLoadPainter({
-    required this.params,
-    this.seed = Constants.RANDOM_SEED,
-  });
+  PaintLoadPainter({required this.params, this.seed = Constants.RANDOM_SEED});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -40,8 +37,7 @@ class PaintLoadPainter extends CustomPainter {
 
   /// Light load drawing - simple shapes
   void _paintLightLoad(Canvas canvas, Size size, Random random) {
-    final paint = Paint()
-      ..style = PaintingStyle.fill;
+    final paint = Paint()..style = PaintingStyle.fill;
 
     for (int i = 0; i < params.shapeCount; i++) {
       // Random color (low opacity, doesn't affect visuals)
@@ -79,15 +75,17 @@ class PaintLoadPainter extends CustomPainter {
       final radius = random.nextDouble() * 8 + 2;
 
       // Create Paint with shadow
-      final paint = Paint()
-        ..color = color
-        ..style = PaintingStyle.fill;
+      final paint =
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.fill;
 
       if (params.enableShadow) {
         // Draw shadow
-        final shadowPaint = Paint()
-          ..color = Colors.black.withOpacity(0.05)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+        final shadowPaint =
+            Paint()
+              ..color = Colors.black.withOpacity(0.05)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
         canvas.drawCircle(Offset(x + 2, y + 2), radius, shadowPaint);
       }
 
@@ -118,16 +116,18 @@ class PaintLoadPainter extends CustomPainter {
 
       // Draw shadow (larger blur)
       if (params.enableShadow) {
-        final shadowPaint = Paint()
-          ..color = Colors.black.withOpacity(0.03)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+        final shadowPaint =
+            Paint()
+              ..color = Colors.black.withOpacity(0.03)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
         canvas.drawCircle(Offset(x + 3, y + 3), radius * 1.2, shadowPaint);
       }
 
       // Draw main shape
-      final paint = Paint()
-        ..color = color
-        ..style = PaintingStyle.fill;
+      final paint =
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.fill;
 
       // Heavy load uses blur effect
       if (params.enableBlur) {
@@ -149,7 +149,13 @@ class PaintLoadPainter extends CustomPainter {
   }
 
   /// Draw complex path
-  void _drawComplexPath(Canvas canvas, Size size, Random random, int points, Color color) {
+  void _drawComplexPath(
+    Canvas canvas,
+    Size size,
+    Random random,
+    int points,
+    Color color,
+  ) {
     final path = Path();
     final startX = random.nextDouble() * size.width;
     final startY = random.nextDouble() * size.height;
@@ -167,10 +173,11 @@ class PaintLoadPainter extends CustomPainter {
       path.cubicTo(controlX1, controlY1, controlX2, controlY2, endX, endY);
     }
 
-    final pathPaint = Paint()
-      ..color = color.withOpacity(0.02)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.5;
+    final pathPaint =
+        Paint()
+          ..color = color.withOpacity(0.02)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.5;
 
     canvas.drawPath(path, pathPaint);
   }
@@ -186,13 +193,22 @@ class PaintLoadPainter extends CustomPainter {
 
     final gradient = LinearGradient(
       colors: [
-        Color.fromARGB(5, random.nextInt(256), random.nextInt(256), random.nextInt(256)),
-        Color.fromARGB(5, random.nextInt(256), random.nextInt(256), random.nextInt(256)),
+        Color.fromARGB(
+          5,
+          random.nextInt(256),
+          random.nextInt(256),
+          random.nextInt(256),
+        ),
+        Color.fromARGB(
+          5,
+          random.nextInt(256),
+          random.nextInt(256),
+          random.nextInt(256),
+        ),
       ],
     );
 
-    final paint = Paint()
-      ..shader = gradient.createShader(rect);
+    final paint = Paint()..shader = gradient.createShader(rect);
 
     canvas.drawRect(rect, paint);
   }
@@ -200,8 +216,8 @@ class PaintLoadPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant PaintLoadPainter oldDelegate) {
     return oldDelegate.params.shapeCount != params.shapeCount ||
-           oldDelegate.params.complexity != params.complexity ||
-           oldDelegate.seed != seed;
+        oldDelegate.params.complexity != params.complexity ||
+        oldDelegate.seed != seed;
   }
 }
 
@@ -210,11 +226,8 @@ class PaintLoadWidget extends StatelessWidget {
   final int loadType;
   final Widget child;
 
-  const PaintLoadWidget({
-    Key? key,
-    required this.loadType,
-    required this.child,
-  }) : super(key: key);
+  const PaintLoadWidget({Key? key, required this.loadType, required this.child})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -258,25 +271,27 @@ class AnimatedPaintLoadWidget extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<AnimatedPaintLoadWidget> createState() => _AnimatedPaintLoadWidgetState();
+  State<AnimatedPaintLoadWidget> createState() =>
+      _AnimatedPaintLoadWidgetState();
 }
 
 class _AnimatedPaintLoadWidgetState extends State<AnimatedPaintLoadWidget>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  int _frameCount = 0;
+  int _frameIndex = 0;
+  static const int _seedCycleLength = 60;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 16), // ~60fps
+      duration: const Duration(milliseconds: 16),
     )..addListener(() {
-        setState(() {
-          _frameCount++;
-        });
+      setState(() {
+        _frameIndex = (_frameIndex + 1) % _seedCycleLength;
       });
+    });
     _controller.repeat();
   }
 
@@ -295,6 +310,7 @@ class _AnimatedPaintLoadWidgetState extends State<AnimatedPaintLoadWidget>
     }
 
     final params = calculator.getPaintLoadParams(widget.loadType);
+    final stableSeed = Constants.RANDOM_SEED + _frameIndex;
 
     return Stack(
       children: [
@@ -302,10 +318,7 @@ class _AnimatedPaintLoadWidgetState extends State<AnimatedPaintLoadWidget>
         Positioned.fill(
           child: IgnorePointer(
             child: CustomPaint(
-              painter: PaintLoadPainter(
-                params: params,
-                seed: Constants.RANDOM_SEED + _frameCount, // Change each frame
-              ),
+              painter: PaintLoadPainter(params: params, seed: stableSeed),
               child: const SizedBox.expand(),
             ),
           ),
