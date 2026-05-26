@@ -1,6 +1,4 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
-import '../constants.dart';
 import '../utils/asset_generator.dart';
 
 /// 朋友圈顶部视图组件

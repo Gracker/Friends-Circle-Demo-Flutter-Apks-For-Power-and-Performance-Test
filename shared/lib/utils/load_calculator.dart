@@ -21,18 +21,156 @@ class _PseudoRandom {
   }
 }
 
+/// Scroll phase used to gate synthetic load execution.
+enum LoadScrollPhase {
+  idle,
+  dragging,
+  inertial,
+}
+
 /// Load Calculator Utility Class
+///
+/// 对齐原生 LoadSimulator + LoadScheduler:
+/// 1. 伪随机帧间隔触发（3~5帧间隔）
+/// 2. 概率触发（Light 32% / Medium 48% / Heavy 72%）
+/// 3. 滚动阶段感知（仅惯性滑动时执行负载）
+/// 4. 固定种子确保测试可重现
 class LoadCalculator {
   static final LoadCalculator _instance = LoadCalculator._internal();
   factory LoadCalculator() => _instance;
-  LoadCalculator._internal();
+  LoadCalculator._internal() {
+    resetState();
+  }
 
   static final List<double> _workBuffer = List.filled(256, 0.0);
 
-  /// ========== Build Load Calculation ==========
-  /// Called in Widget.build() method, generates CPU load
-  /// Returns calculation result, can be used to dynamically adjust UI parameters
+  // ========== 伪随机数生成器（对齐原生多组固定种子）==========
+  late _PseudoRandom _taskProbabilityRandom;
+  late _PseudoRandom _doFrameIntervalRandom;
+  late _PseudoRandom _betweenFrameIntervalRandom;
+
+  // ========== 帧计数器（对齐原生帧间隔触发机制）==========
+  int _doFrameCounter = 0;
+  int _nextDoFrameTarget = 0;
+  int _currentDoFrameLoadLevel = 0;
+
+  int _betweenFrameCounter = 0;
+  int _nextBetweenFrameTarget = 0;
+  int _currentBetweenFrameLoadLevel = 0;
+
+  // ========== 滚动阶段感知（按压拖动不加负载，仅惯性滑动加负载）==========
+  LoadScrollPhase _scrollPhase = LoadScrollPhase.idle;
+
+  /// 设置滚动阶段（由 UnifiedLoadScreen 调用）
+  bool setScrollPhase(LoadScrollPhase phase) {
+    if (_scrollPhase == phase) return false;
+    _scrollPhase = phase;
+    return true;
+  }
+
+  /// 只有惯性滑动阶段允许执行负载
+  bool get isInertialScrolling => _scrollPhase == LoadScrollPhase.inertial;
+
+  /// 重置所有状态（对齐原生 resetRandomState）
+  void resetState() {
+    _taskProbabilityRandom = _PseudoRandom(Constants.TASK_INTERVAL_SEED);
+    _doFrameIntervalRandom = _PseudoRandom(Constants.DOFRAME_INTERVAL_SEED);
+    _betweenFrameIntervalRandom =
+        _PseudoRandom(Constants.BETWEEN_FRAME_INTERVAL_SEED);
+    _doFrameCounter = 0;
+    _nextDoFrameTarget = 0;
+    _currentDoFrameLoadLevel = 0;
+    _betweenFrameCounter = 0;
+    _nextBetweenFrameTarget = 0;
+    _currentBetweenFrameLoadLevel = 0;
+    _scrollPhase = LoadScrollPhase.idle;
+  }
+
+  // ========== 概率触发（对齐原生 shouldExecuteByProbability）==========
+
+  /// 获取负载级别对应的触发概率
+  double _getTaskProbability(int loadType) {
+    int level = _getLoadLevel(loadType);
+    double baseProbability;
+    switch (level) {
+      case 1:
+        baseProbability = Constants.LIGHT_TASK_PROBABILITY;
+        break;
+      case 2:
+        baseProbability = Constants.MEDIUM_TASK_PROBABILITY;
+        break;
+      case 3:
+        baseProbability = Constants.HEAVY_TASK_PROBABILITY;
+        break;
+      default:
+        return 0.0;
+    }
+    // 混合负载额外增益
+    if (isMixedLoadType(loadType)) {
+      double boosted = baseProbability * Constants.MIXED_TASK_PROBABILITY_BOOST;
+      return boosted > 1.0 ? 1.0 : boosted;
+    }
+    return baseProbability;
+  }
+
+  /// 概率判定（对齐原生 shouldExecuteByProbability）
+  bool _shouldExecuteByProbability(int loadType) {
+    double probability = _getTaskProbability(loadType);
+    if (probability <= 0) return false;
+    if (probability >= 1.0) return true;
+    return _taskProbabilityRandom.nextDouble() < probability;
+  }
+
+  // ========== 帧间隔控制（对齐原生 calculateNextDoFrameInterval）==========
+
+  int _getMinFrameInterval(int loadLevel) {
+    switch (loadLevel) {
+      case 1:
+        return Constants.LIGHT_MIN_FRAME_INTERVAL;
+      case 2:
+        return Constants.MEDIUM_MIN_FRAME_INTERVAL;
+      case 3:
+        return Constants.HEAVY_MIN_FRAME_INTERVAL;
+      default:
+        return Constants.LIGHT_MIN_FRAME_INTERVAL;
+    }
+  }
+
+  int _getMaxFrameInterval(int loadLevel) {
+    switch (loadLevel) {
+      case 1:
+        return Constants.LIGHT_MAX_FRAME_INTERVAL;
+      case 2:
+        return Constants.MEDIUM_MAX_FRAME_INTERVAL;
+      case 3:
+        return Constants.HEAVY_MAX_FRAME_INTERVAL;
+      default:
+        return Constants.LIGHT_MAX_FRAME_INTERVAL;
+    }
+  }
+
+  int _calculateNextDoFrameInterval(int loadLevel) {
+    int minInterval = _getMinFrameInterval(loadLevel);
+    int maxInterval = _getMaxFrameInterval(loadLevel);
+    return minInterval +
+        _doFrameIntervalRandom.nextInt(maxInterval - minInterval + 1);
+  }
+
+  int _calculateNextBetweenFrameInterval(int loadLevel) {
+    int minInterval = _getMinFrameInterval(loadLevel);
+    int maxInterval = _getMaxFrameInterval(loadLevel);
+    return minInterval +
+        _betweenFrameIntervalRandom.nextInt(maxInterval - minInterval + 1);
+  }
+
+  // ========== Build Load（对齐原生 executeInFrameLoad）==========
+
+  /// 执行 Build 负载
+  /// 对齐原生: 帧间隔控制 + 概率触发 + 滚动阶段感知
   double performBuildLoad(int loadType) {
+    // 阶段感知：按压/拖动/静止都不推进调度节奏，只有惯性滑动执行
+    if (!isInertialScrolling) return 0.0;
+
     int iterations;
     int complexity;
 
@@ -62,15 +200,38 @@ class LoadCalculator {
         complexity = 3;
         break;
       default:
-        return 0.0; // No load or other load types
+        return 0.0;
+    }
+
+    // 帧间隔控制（对齐原生）
+    int level = _getLoadLevel(loadType);
+    if (level != _currentDoFrameLoadLevel) {
+      _currentDoFrameLoadLevel = level;
+      _nextDoFrameTarget =
+          _doFrameCounter + _calculateNextDoFrameInterval(level);
+    }
+    _doFrameCounter++;
+    if (_doFrameCounter < _nextDoFrameTarget) {
+      return 0.0; // 还没到执行时机
+    }
+    _nextDoFrameTarget = _doFrameCounter + _calculateNextDoFrameInterval(level);
+
+    // 概率触发（对齐原生）
+    if (!_shouldExecuteByProbability(loadType)) {
+      return 0.0;
     }
 
     return _performCpuCalculation(iterations, complexity);
   }
 
-  /// ========== PostFrame Load Calculation ==========
-  /// Called after frame rendering, simulates between-frame computation
+  // ========== PostFrame Load（对齐原生 executePureBetweenFrameLoad / executeBetweenFrameLoad）==========
+
+  /// 执行 PostFrame 负载
+  /// 对齐原生: 帧间隔控制 + 概率触发 + 滚动阶段感知
   void performPostFrameLoad(int loadType) {
+    // 阶段感知：按压/拖动/静止都不推进调度节奏，只有惯性滑动执行
+    if (!isInertialScrolling) return;
+
     int iterations;
     int complexity;
 
@@ -100,13 +261,33 @@ class LoadCalculator {
         complexity = 3;
         break;
       default:
-        return; // No load or other load types
+        return;
+    }
+
+    // 帧间隔控制（对齐原生）
+    int level = _getLoadLevel(loadType);
+    if (level != _currentBetweenFrameLoadLevel) {
+      _currentBetweenFrameLoadLevel = level;
+      _nextBetweenFrameTarget =
+          _betweenFrameCounter + _calculateNextBetweenFrameInterval(level);
+    }
+    _betweenFrameCounter++;
+    if (_betweenFrameCounter < _nextBetweenFrameTarget) {
+      return; // 还没到执行时机
+    }
+    _nextBetweenFrameTarget =
+        _betweenFrameCounter + _calculateNextBetweenFrameInterval(level);
+
+    // 概率触发（对齐原生）
+    if (!_shouldExecuteByProbability(loadType)) {
+      return;
     }
 
     _performCpuCalculation(iterations, complexity);
   }
 
-  /// ========== Paint Load Parameters ==========
+  // ========== Paint Load Parameters ==========
+
   /// Returns Paint load parameters for CustomPainter usage
   PaintLoadParams getPaintLoadParams(int loadType) {
     switch (loadType) {
@@ -139,7 +320,8 @@ class LoadCalculator {
     }
   }
 
-  /// ========== Register PostFrame Callback ==========
+  // ========== Register PostFrame Callback ==========
+
   /// Used for PostFrame and Mixed load types
   void schedulePostFrameLoad(int loadType, {bool continuous = true}) {
     if (!_isPostFrameLoadType(loadType)) return;
@@ -190,7 +372,7 @@ class LoadCalculator {
 
   /// Core CPU Calculation Method with pseudo-random data dependency
   double _performCpuCalculation(int iterations, int complexity) {
-    final random = _PseudoRandom(Constants.RANDOM_SEED);
+    final random = _PseudoRandom(Constants.COMPUTATION_SEED);
     double result = 0.0;
     int bufferIndex = 0;
 
@@ -218,32 +400,32 @@ class LoadCalculator {
     return result;
   }
 
-  /// ========== Get Data Generation Parameters ==========
-  /// Returns data generation parameters based on load type (comments, likes, image counts)
+  // ========== Get Data Generation Parameters ==========
+
+  /// Returns data generation parameters based on load type
   DataGenerationParams getDataGenerationParams(int loadType) {
-    // Return parameters based on load level (light/medium/heavy)
     int level = _getLoadLevel(loadType);
 
     switch (level) {
-      case 1: // Light
+      case 1:
         return DataGenerationParams(
           maxComments: Constants.LIGHT_LOAD_COMMENT_MAX,
           maxPraises: Constants.LIGHT_LOAD_PRAISE_MAX,
           maxImages: Constants.LIGHT_LOAD_IMAGE_MAX,
         );
-      case 2: // Medium
+      case 2:
         return DataGenerationParams(
           maxComments: Constants.MEDIUM_LOAD_COMMENT_MAX,
           maxPraises: Constants.MEDIUM_LOAD_PRAISE_MAX,
           maxImages: Constants.MEDIUM_LOAD_IMAGE_MAX,
         );
-      case 3: // Heavy
+      case 3:
         return DataGenerationParams(
           maxComments: Constants.HEAVY_LOAD_COMMENT_MAX,
           maxPraises: Constants.HEAVY_LOAD_PRAISE_MAX,
           maxImages: Constants.HEAVY_LOAD_IMAGE_MAX,
         );
-      default: // Minimal
+      default:
         return DataGenerationParams(
           maxComments: 1,
           maxPraises: 1,
@@ -256,7 +438,6 @@ class LoadCalculator {
   int _getLoadLevel(int loadType) {
     if (loadType == Constants.LOAD_TYPE_MINIMAL) return 0;
 
-    // Determine level based on load type
     if (loadType == Constants.LOAD_TYPE_BUILD_LIGHT ||
         loadType == Constants.LOAD_TYPE_PAINT_LIGHT ||
         loadType == Constants.LOAD_TYPE_POSTFRAME_LIGHT ||
@@ -275,11 +456,11 @@ class LoadCalculator {
 
 /// Paint Load Parameters Class
 class PaintLoadParams {
-  final int shapeCount; // Number of shapes to draw
-  final int pathPoints; // Number of path points
-  final bool enableShadow; // Enable shadow effect
-  final bool enableBlur; // Enable blur effect
-  final int complexity; // Complexity level (1-3)
+  final int shapeCount;
+  final int pathPoints;
+  final bool enableShadow;
+  final bool enableBlur;
+  final int complexity;
 
   PaintLoadParams({
     required this.shapeCount,
@@ -289,7 +470,6 @@ class PaintLoadParams {
     required this.complexity,
   });
 
-  /// No load parameters
   factory PaintLoadParams.none() {
     return PaintLoadParams(
       shapeCount: 0,
@@ -303,9 +483,9 @@ class PaintLoadParams {
 
 /// Data Generation Parameters Class
 class DataGenerationParams {
-  final int maxComments; // Max comment count
-  final int maxPraises; // Max like count
-  final int maxImages; // Max image count
+  final int maxComments;
+  final int maxPraises;
+  final int maxImages;
 
   DataGenerationParams({
     required this.maxComments,

@@ -554,33 +554,56 @@ fvm flutter build apk --release \
 
 ## Load Parameter Configuration
 
-### Build Load Iterations
+> **Design references [HighPerformanceFriendsCircle](https://github.com/Gracker/Friends-Circle-Demo-Apks-For-Power-and-Performance-Test) native project.**
+> Gradual progression with probability-based triggering, frame interval control, and scroll awareness.
+
+### Build Load Iterations (In-Frame, ratio 1:4:10)
 | Level | Iterations |
 |-------|------------|
-| Light | 10 |
-| Medium | 2,000 |
+| Light | 2,000 |
+| Medium | 8,000 |
 | Heavy | 20,000 |
 
-### Paint Load Shape Count
+### Paint Load Shape Count (Flutter-only)
 | Level | Shape Count | Path Points | Shadow | Blur |
 |-------|-------------|-------------|--------|------|
 | Light | 50 | 10 | ❌ | ❌ |
 | Medium | 200 | 50 | ✅ | ❌ |
 | Heavy | 800 | 200 | ✅ | ✅ |
 
-### PostFrame Load Iterations
+### PostFrame Load Iterations (Between-Frame, ratio 1:3:6)
 | Level | Iterations |
 |-------|------------|
 | Light | 5,000 |
-| Medium | 50,000 |
-| Heavy | 200,000 |
+| Medium | 15,000 |
+| Heavy | 30,000 |
 
-### Mixed Load Combination
-| Level | Build Iterations | PostFrame Iterations |
-|-------|------------------|---------------------|
-| Light | 5 | 2,500 |
-| Medium | 1,000 | 25,000 |
-| Heavy | 10,000 | 100,000 |
+### Mixed Load Combination (Build + PostFrame = In-Frame)
+| Level | Build Part | PostFrame Part | Total = In-Frame |
+|-------|------------|----------------|------------------|
+| Light | 1,000 | 1,000 | 2,000 |
+| Medium | 4,000 | 4,000 | 8,000 |
+| Heavy | 10,000 | 10,000 | 20,000 |
+
+### Trigger Probability (aligned with native)
+| Level | Probability | Multiplier |
+|-------|-------------|------------|
+| Light | 32% | 1.0x |
+| Medium | 48% | 1.5x |
+| Heavy | 72% | 2.25x |
+| Mixed Boost | ×1.20 | - |
+
+### Frame Interval (aligned with native 3~5 frame interval)
+| Level | Min Frames | Max Frames |
+|-------|------------|------------|
+| All levels | 3 | 5 |
+
+### Scroll Awareness
+All synthetic load types are gated by scroll phase:
+
+- Press-drag/manual drag interval: no Build, Paint, PostFrame, or Mixed load is executed.
+- Ballistic/inertial interval after finger release: load execution is enabled with the probability and frame-interval controls above.
+- Idle interval: load execution stops immediately.
 
 ## Related Projects
 

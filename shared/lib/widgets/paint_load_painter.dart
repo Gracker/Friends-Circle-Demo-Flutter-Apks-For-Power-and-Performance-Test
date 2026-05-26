@@ -75,17 +75,15 @@ class PaintLoadPainter extends CustomPainter {
       final radius = random.nextDouble() * 8 + 2;
 
       // Create Paint with shadow
-      final paint =
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.fill;
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
 
       if (params.enableShadow) {
         // Draw shadow
-        final shadowPaint =
-            Paint()
-              ..color = Colors.black.withOpacity(0.05)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+        final shadowPaint = Paint()
+          ..color = Colors.black.withOpacity(0.05)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
         canvas.drawCircle(Offset(x + 2, y + 2), radius, shadowPaint);
       }
 
@@ -116,18 +114,16 @@ class PaintLoadPainter extends CustomPainter {
 
       // Draw shadow (larger blur)
       if (params.enableShadow) {
-        final shadowPaint =
-            Paint()
-              ..color = Colors.black.withOpacity(0.03)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+        final shadowPaint = Paint()
+          ..color = Colors.black.withOpacity(0.03)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
         canvas.drawCircle(Offset(x + 3, y + 3), radius * 1.2, shadowPaint);
       }
 
       // Draw main shape
-      final paint =
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.fill;
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
 
       // Heavy load uses blur effect
       if (params.enableBlur) {
@@ -173,11 +169,10 @@ class PaintLoadPainter extends CustomPainter {
       path.cubicTo(controlX1, controlY1, controlX2, controlY2, endX, endY);
     }
 
-    final pathPaint =
-        Paint()
-          ..color = color.withOpacity(0.02)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.5;
+    final pathPaint = Paint()
+      ..color = color.withOpacity(0.02)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5;
 
     canvas.drawPath(path, pathPaint);
   }
@@ -227,7 +222,7 @@ class PaintLoadWidget extends StatelessWidget {
   final Widget child;
 
   const PaintLoadWidget({Key? key, required this.loadType, required this.child})
-    : super(key: key);
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -260,13 +255,17 @@ class PaintLoadWidget extends StatelessWidget {
 }
 
 /// Animated Paint Load Widget (for continuous GPU load)
+///
+/// 仅在惯性滑动时执行 GPU 绘制负载，按压拖动阶段不叠加负载层
 class AnimatedPaintLoadWidget extends StatefulWidget {
   final int loadType;
+  final bool isActive;
   final Widget child;
 
   const AnimatedPaintLoadWidget({
     Key? key,
     required this.loadType,
+    required this.isActive,
     required this.child,
   }) : super(key: key);
 
@@ -288,11 +287,31 @@ class _AnimatedPaintLoadWidgetState extends State<AnimatedPaintLoadWidget>
       vsync: this,
       duration: const Duration(milliseconds: 16),
     )..addListener(() {
-      setState(() {
-        _frameIndex = (_frameIndex + 1) % _seedCycleLength;
+        if (widget.isActive) {
+          setState(() {
+            _frameIndex = (_frameIndex + 1) % _seedCycleLength;
+          });
+        }
       });
-    });
-    _controller.repeat();
+    _syncAnimationState();
+  }
+
+  @override
+  void didUpdateWidget(covariant AnimatedPaintLoadWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      _syncAnimationState();
+    }
+  }
+
+  void _syncAnimationState() {
+    if (widget.isActive) {
+      if (!_controller.isAnimating) {
+        _controller.repeat();
+      }
+    } else if (_controller.isAnimating) {
+      _controller.stop();
+    }
   }
 
   @override
@@ -306,6 +325,11 @@ class _AnimatedPaintLoadWidgetState extends State<AnimatedPaintLoadWidget>
     final calculator = LoadCalculator();
 
     if (!calculator.isPaintLoadType(widget.loadType)) {
+      return widget.child;
+    }
+
+    // 非惯性滑动时不叠加 Paint 负载层
+    if (!widget.isActive) {
       return widget.child;
     }
 

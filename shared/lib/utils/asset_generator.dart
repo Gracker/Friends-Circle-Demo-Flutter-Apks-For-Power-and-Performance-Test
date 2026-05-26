@@ -30,35 +30,6 @@ class AssetGenerator {
     const Color(0xFFD35400), // 深橙色
   ];
 
-  // 图片主题
-  final List<ImageTheme> _imageThemes = [
-    ImageTheme(
-      name: "自然风景",
-      icons: [Icons.landscape, Icons.forest, Icons.terrain, Icons.beach_access, Icons.water],
-      baseColors: [Colors.green.shade700, Colors.blue.shade700, Colors.brown.shade700]
-    ),
-    ImageTheme(
-      name: "城市风光",
-      icons: [Icons.location_city, Icons.apartment, Icons.business, Icons.domain, Icons.home_work],
-      baseColors: [Colors.blueGrey.shade700, Colors.grey.shade700, Colors.indigo.shade700]
-    ),
-    ImageTheme(
-      name: "美食分享",
-      icons: [Icons.restaurant, Icons.fastfood, Icons.local_cafe, Icons.food_bank, Icons.bakery_dining],
-      baseColors: [Colors.orange.shade700, Colors.red.shade700, Colors.amber.shade700]
-    ),
-    ImageTheme(
-      name: "运动健身",
-      icons: [Icons.sports_soccer, Icons.sports_basketball, Icons.fitness_center, Icons.directions_run, Icons.sports_tennis],
-      baseColors: [Colors.blue.shade700, Colors.green.shade700, Colors.red.shade700]
-    ),
-    ImageTheme(
-      name: "旅行游记",
-      icons: [Icons.flight, Icons.train, Icons.directions_car, Icons.directions_boat, Icons.hotel],
-      baseColors: [Colors.teal.shade700, Colors.cyan.shade700, Colors.indigo.shade700]
-    ),
-  ];
-
   /// 获取或生成图片
   Future<ui.Image> getImage(String key, int width, int height) async {
     // 如果缓存中已存在，直接返回
@@ -73,7 +44,8 @@ class AssetGenerator {
     // 填充背景
     final backgroundColor = _colors[_random.nextInt(_colors.length)];
     final Paint paint = Paint()..color = backgroundColor;
-    canvas.drawRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()), paint);
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()), paint);
 
     // 添加一些图形元素
     _drawRandomShapes(canvas, width, height);
@@ -258,12 +230,9 @@ class AssetGenerator {
     final random = Random(hash);
 
     final double hue = random.nextDouble() * 360;
-    final Color avatarColor = HSLColor.fromAHSL(
-      1.0,
-      hue,
-      0.7,
-      0.5 + random.nextDouble() * 0.3
-    ).toColor();
+    final Color avatarColor =
+        HSLColor.fromAHSL(1.0, hue, 0.7, 0.5 + random.nextDouble() * 0.3)
+            .toColor();
 
     // 构建文本头像
     return Container(
@@ -383,19 +352,6 @@ class AssetGenerator {
   }
 }
 
-/// 图片主题类
-class ImageTheme {
-  final String name;
-  final List<IconData> icons;
-  final List<Color> baseColors;
-
-  ImageTheme({
-    required this.name,
-    required this.icons,
-    required this.baseColors,
-  });
-}
-
 /// 头像图案绘制器
 class AvatarPatternPainter extends CustomPainter {
   final Random random;
@@ -502,7 +458,8 @@ class ImagePatternPainter extends CustomPainter {
 
     for (int i = 0; i < mountainCount; i++) {
       final path = Path();
-      final height = size.height - (i * size.height / mountainCount) - random.nextInt(20);
+      final height =
+          size.height - (i * size.height / mountainCount) - random.nextInt(20);
 
       path.moveTo(0, size.height);
 
